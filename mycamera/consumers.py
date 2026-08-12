@@ -24,11 +24,14 @@ class WebRTCConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         data = json.loads(text_data)
+
+        # Handle SDP offer/answer
         if "sdp" in data:
             desc = RTCSessionDescription(
                 sdp=data["sdp"]["sdp"], type=data["sdp"]["type"]
             )
             await self.pc.setRemoteDescription(desc)
+
             if desc.type == "offer":
                 answer = await self.pc.createAnswer()
                 await self.pc.setLocalDescription(answer)
@@ -38,11 +41,13 @@ class WebRTCConsumer(AsyncWebsocketConsumer):
                         "type": self.pc.localDescription.type
                     }
                 }))
+
+        # Handle ICE candidates
         elif "candidate" in data:
             candidate = data["candidate"]
             ice = RTCIceCandidate(
-                sdp=candidate.get("candidate"),
                 sdpMid=candidate.get("sdpMid"),
-                sdpMLineIndex=candidate.get("sdpMLineIndex")
+                sdpMLineIndex=candidate.get("sdpMLineIndex"),
+                candidate=candidate["candidate"]
             )
             await self.pc.addIceCandidate(ice)
