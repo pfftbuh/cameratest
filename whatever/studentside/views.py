@@ -3,3 +3,6 @@ from django.shortcuts import render
 # Create your views here.
 def student_home(request):
     return render(request, 'studentside/student_landing_page.html')
+
+def test_exam(request):
+    return render(request, 'studentside/test_exam.html')
