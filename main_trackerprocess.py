@@ -1,0 +1,188 @@
+import cv2
+import numpy as np
+import face_trackprocessor as ftp
+import face_axisprocessor as fap
+import eye_trackprocessor as etp
+import eye_calibrationprocessor as ecp
+import gaze_directionprocessor as gdp
+import suspicion_scoringprocessor as ssp
+import eye_screenposprocessor as esp
+import keypress_trackprocessor as ktp
+import heatmap_processor as hp
+import frame_bufferprocessor as fbp
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
+
+processor = ftp.FaceLandmarkerProcessor()
+axis_processor = fap.FaceAxisProcessor()
+eye_processor = etp.EyeLandmarkerProcessor()
+eye_calibrator = ecp.EyeCalibrationProcessor()
+gaze_processor = gdp.GazeDirectionProcessor()
+scoring_processor = ssp.SuspicionScoringProcessor()
+screen_pos_processor = esp.EyeScreenPosProcessor(SCREEN_WIDTH, SCREEN_HEIGHT)
+keypress_processor = ktp.KeypressTrackProcessor()
+heatmap_processor = hp.HeatmapProcessor(SCREEN_WIDTH, SCREEN_HEIGHT)
+
+cap = cv2.VideoCapture(1)
+frame_buffer = fbp.FrameBufferProcessor(cap)
+avg_direction = None
+raw_eye_data = None
+current_gaze = 'Center'
+calibration_samples = []
+is_collecting_samples = False
+
+# DEBUGGING PURPOSES: This loop processes the video feed from the webcam, detects face and eye landmarks, 
+# estimates head pose, and displays the results in real-time. 
+# It also allows for calibration of the head pose estimation by pressing the 'c' key. 
+# The estimated screen position is visualized on a separate frame for debugging purposes. 
+
+while True:
+    face_screenpos = None
+    eye_screenpos = None
+    directionsval = None
+    
+    key = cv2.waitKey(1) & 0xFF
+
+    if key == ord('{') and avg_direction is not None and raw_eye_data is not None and not is_collecting_samples:
+        if eye_calibrator.calibration_stage == -1:
+            eye_calibrator.next_stage()
+            axis_processor.calibrate(avg_direction)
+            continue
+
+        print(f"Collecting samples for calibration stage {eye_calibrator.calibration_stage}... Look at the target position.")
+        eye_calibrator.sample_count = 60
+        calibration_samples = []
+        is_collecting_samples = True
+    
+
+    elif key == ord('}'):
+        break
+
+    frame = frame_buffer.get_frame()
+    if frame is None:
+        continue
+
+    # ====================== FACE PROCESSING ======================
+    face_frame = frame.copy()
+    results = processor.process_frame(face_frame)
+    output_frame, avg_direction, face_center = processor._draw_landmarks(face_frame, results)
+    if avg_direction is not None:
+        axis_processor.update_anchor_from_face_position(*face_center, face_frame.shape[1], face_frame.shape[0])
+        yaw, pitch = axis_processor.process(avg_direction)
+        face_screenpos = axis_processor.get_estimated_screen_position()
+        if yaw is not None and pitch is not None:
+            cv2.putText(output_frame, f"Yaw: {yaw:.2f} deg", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(output_frame, f"Pitch: {pitch:.2f} deg", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    cv2.imshow("Face Landmarks", output_frame)
+    # ===================== END OF FACE PROCESSING ======================
+    
+    # ===================== ESTIMATED SCREEN POSITION DEBUGGING =========
+    # Frame is for debugging purposes, create a frame with the estimated screen position.
+    if avg_direction is not None:
+        screen_frame = np.zeros((SCREEN_HEIGHT//2, SCREEN_WIDTH//2, 3), dtype=np.uint8)
+        if face_screenpos is not None:
+            cv2.circle(screen_frame, (int(face_screenpos[0]//2), int(face_screenpos[1]//2)), 10, (0, 255, 0), -1)
+            # Face Position test that follows the estimated screen position from the head pose estimation.
+            cv2.putText(screen_frame, f"Estimated Screen Pos(Face) ({face_screenpos[0]:.2f}, {face_screenpos[1]:.2f})", (int(face_screenpos[0]//2) - 10, int(face_screenpos[1]//2) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # For debugging purposes, display calibration thresholds values on the screen frame.
+        if eye_calibrator.calibration_stage == 5:
+            cv2.putText(screen_frame, f"Calib Center: ({eye_calibrator.calibration_iris_boxheight_center:.4f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(screen_frame, f"Calib Up: {eye_calibrator.calibration_iris_boxheight_up:.4f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(screen_frame, f"Calib Down: {eye_calibrator.calibration_iris_boxheight_down:.4f}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(screen_frame, f"Calib Left: {eye_calibrator.calibration_left:.4f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(screen_frame, f"Calib Right: {eye_calibrator.calibration_right:.4f}", (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            #directionsval = gaze_processor.update_direction(raw_eye_data, eye_calibrator.calibrated_thresholds)
+            result = screen_pos_processor.process(eye_calibrator.calibrated_thresholds, raw_eye_data)
+            if result is not None:
+                eye_screenpos, directionsval = result
+
+            # Draw circle on the screen frame based on the estimated screen position from the eye tracking.
+            if eye_screenpos is not None:
+                cv2.circle(screen_frame, (int(eye_screenpos[0]//2), int(eye_screenpos[1]//2)), 10, (0, 0, 255), -1)   
+                # Eye Position test that follows the estimated screen position from the eye tracking. 
+                cv2.putText(screen_frame, f"Estimated Screen Pos(Eye) ({eye_screenpos[0]:.2f}, {eye_screenpos[1]:.2f})", (int(eye_screenpos[0]//2) - 10, int(eye_screenpos[1]//2) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+            # Weighted Screen Position based on the estimated screen position from both the head pose estimation and the eye tracking.
+            weighted_screen_pos = gaze_processor.weighted_screen_position(face_screenpos, eye_screenpos)
+            
+            # Record point for heatmap
+            if weighted_screen_pos is not None:
+                heatmap_processor.add_point(weighted_screen_pos)
+                
+                cv2.circle(screen_frame, (int(weighted_screen_pos[0]//2), int(weighted_screen_pos[1]//2)), 10, (255, 255, 0), -1)
+                cv2.putText(screen_frame, f"Weighted Screen Pos ({weighted_screen_pos[0]:.2f}, {weighted_screen_pos[1]:.2f})", (int(weighted_screen_pos[0]//2) - 10, int(weighted_screen_pos[1]//2) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+            if directionsval is not None:
+                current_gaze = directionsval
+                
+                cv2.putText(screen_frame, f"Gaze Direction: ({directionsval[0]}, {directionsval[1]})", (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                if directionsval[0] == "Up" and directionsval[1] == "Left":
+                   # Draw a rectangle in the top-left corner of the screen frame to indicate up-left gaze direction.
+                   cv2.rectangle(screen_frame, (0, 0), (screen_frame.shape[1]//3, screen_frame.shape[0]//3), (255, 0, 0), 2) 
+                elif directionsval[0] == "Up" and directionsval[1] == "Right":
+                    # Draw a rectangle in the top-right corner of the screen frame to indicate up-right gaze direction.
+                    cv2.rectangle(screen_frame, (screen_frame.shape[1]*2//3, 0), (screen_frame.shape[1], screen_frame.shape[0]//3), (255, 0, 0), 2)
+                elif directionsval[0] == "Down" and directionsval[1] == "Left":
+                    # Draw a rectangle in the bottom-left corner of the screen frame to indicate down-left gaze direction.
+                    cv2.rectangle(screen_frame, (0, screen_frame.shape[0]*2//3), (screen_frame.shape[1]//3, screen_frame.shape[0]), (255, 0, 0), 2)
+                elif directionsval[0] == "Down" and directionsval[1] == "Right":
+                    # Draw a rectangle in the bottom-right corner of the screen frame to indicate down-right gaze direction.
+                    cv2.rectangle(screen_frame, (screen_frame.shape[1]*2//3, screen_frame.shape[0]*2//3), (screen_frame.shape[1], screen_frame.shape[0]), (255, 0, 0), 2)
+                elif directionsval[0] == "Center" and directionsval[1] == "Left":
+                    # Draw a rectangle in the left-center of the screen frame to indicate center-left gaze direction.
+                    cv2.rectangle(screen_frame, (0, screen_frame.shape[0]//3), (screen_frame.shape[1]//3, screen_frame.shape[0]*2//3), (255, 0, 0), 2)
+                elif directionsval[0] == "Center" and directionsval[1] == "Right":
+                    # Draw a rectangle in the right-center of the screen frame to indicate center-right gaze direction.
+                    cv2.rectangle(screen_frame, (screen_frame.shape[1]*2//3, screen_frame.shape[0]//3), (screen_frame.shape[1], screen_frame.shape[0]*2//3), (255, 0, 0), 2)
+                elif directionsval[0] == "Up" and directionsval[1] == "Center":
+                    # Draw a rectangle in the top-center of the screen frame to indicate up-center gaze direction.
+                    cv2.rectangle(screen_frame, (screen_frame.shape[1]//3, 0), (screen_frame.shape[1]*2//3, screen_frame.shape[0]//3), (255, 0, 0), 2)
+                elif directionsval[0] == "Down" and directionsval[1] == "Center":
+                    # Draw a rectangle in the bottom-center of the screen frame to indicate down-center gaze direction.
+                    cv2.rectangle(screen_frame, (screen_frame.shape[1]//3, screen_frame.shape[0]*2//3), (screen_frame.shape[1]*2//3, screen_frame.shape[0]), (255, 0, 0), 2)
+                elif directionsval[0] == "Center" and directionsval[1] == "Center":
+                    # Draw a rectangle in the center of the screen frame to indicate center gaze direction.
+                    cv2.rectangle(screen_frame, (screen_frame.shape[1]//3, screen_frame.shape[0]//3), (screen_frame.shape[1]*2//3, screen_frame.shape[0]*2//3), (255, 0, 0), 2)                    
+
+        screen_frame = cv2.resize(screen_frame, (600, 300), interpolation=cv2.INTER_AREA)
+        cv2.imshow("Estimated Screen Position", screen_frame)
+
+    # ===================== END OF ESTIMATED SCREEN POSITION DEBUGGING =========
+    
+    # ====================== EYE PROCESSING ======================
+    # Draw eye landmarks and place on a separate frame for debugging purposes.
+    eye_frame = frame.copy()
+    eye_results = eye_processor.process_frame(eye_frame)
+    eye_frame, raw_eye_data = eye_processor._draw_landmarks(eye_frame, eye_results)
+    eye_frame = cv2.resize(eye_frame, (600, 300), interpolation=cv2.INTER_AREA)
+    cv2.imshow("Eye Landmarks", eye_frame)
+    # ===================== END OF EYE PROCESSING =====================
+
+    # ====================== CALIBRATION SAMPLE COLLECTION ======================
+    if is_collecting_samples:
+        if raw_eye_data is not None:
+            calibration_samples.append(raw_eye_data)
+        if len(calibration_samples) >= eye_calibrator.sample_count:
+            eye_calibrator.calibrate(calibration_samples)
+            print(f"Calibration stage {eye_calibrator.calibration_stage} complete.")
+            eye_calibrator.next_stage()
+            calibration_samples = []
+            is_collecting_samples = False
+            continue
+    # ===================== END OF CALIBRATION SAMPLE COLLECTION =====================
+
+    if eye_calibrator.calibration_stage == 5:
+        # Fetch suspicious keys
+        keystrokes = keypress_processor.get_suspicious_keys()
+        # Update suspicion scoring processor with the current frame, gaze direction, eye screen position, face screen position, and keystrokes.
+        scoring_processor.update(frame, current_gaze, eye_screenpos, face_screenpos, keystrokes)
+    
+        
+
+frame_buffer.stop()
+cap.release()
+cv2.destroyAllWindows()
+scoring_processor.cleanup()
+keypress_processor.cleanup()
+heatmap_processor.generate_heatmap()
