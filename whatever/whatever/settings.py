@@ -58,7 +58,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'camera',
+    'exam',
 ]
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'exam_list'
+LOGOUT_REDIRECT_URL = 'login'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head><title>{{ exam.title }}</title></head>
+<body>
+    <h1>{{ exam.title }}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {% for question in exam.questions.all %}
+            <fieldset>
+                <legend>{{ forloop.counter }}. {{ question.text }}</legend>
+                <label><input type="radio" name="question_{{ question.id }}" value="A" required> {{ question.choice_a }}</label><br>
+                <label><input type="radio" name="question_{{ question.id }}" value="B"> {{ question.choice_b }}</label><br>
+                <label><input type="radio" name="question_{{ question.id }}" value="C"> {{ question.choice_c }}</label><br>
+                <label><input type="radio" name="question_{{ question.id }}" value="D"> {{ question.choice_d }}</label><br>
+            </fieldset>
+        {% empty %}
+            <p>This exam has no questions yet.</p>
+        {% endfor %}
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>

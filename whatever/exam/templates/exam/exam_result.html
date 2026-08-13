@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html>
+<head><title>Result</title></head>
+<body>
+    <h1>{{ attempt.exam.title }} - Result</h1>
+    <p>Score: {{ attempt.score }} / {{ total_questions }}</p>
+    <a href="{% url 'exam_list' %}">Back to exams</a>
+</body>
+</html>

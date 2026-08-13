@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head><title>Exams</title></head>
+<body>
+    <p>Logged in as {{ request.user.username }} | <a href="{% url 'logout' %}">Log out</a></p>
+    <h1>Available Exams</h1>
+    <ul>
+        {% for exam in exams %}
+            <li>
+                <a href="{% url 'take_exam' exam.id %}">{{ exam.title }}</a>
+                {% if exam.description %} - {{ exam.description }}{% endif %}
+            </li>
+        {% empty %}
+            <li>No exams available yet.</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
