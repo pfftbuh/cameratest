@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 class SuspicionScoringProcessor:
-    def __init__(self, side_threshold=3.0, down_threshold=5.0, off_screen_threshold=1.5, freq_threshold=6, screen_width=1920, screen_height=1080):
+    def __init__(self, side_threshold=3.0, down_threshold=5.0, off_screen_threshold=1.5, freq_threshold=6, screen_width=1920, screen_height=1080, output_dir=None):
         # Configuration
         self.side_threshold = side_threshold
         self.down_threshold = down_threshold
@@ -15,10 +15,17 @@ class SuspicionScoringProcessor:
         self.freq_threshold = freq_threshold
         self.screen_width = screen_width
         self.screen_height = screen_height
-        
+
+        # Where the CSV and video evidence are written. Defaults to the working
+        # directory (desktop use); the server passes a per-session folder so two
+        # students recording in the same second cannot overwrite each other.
+        self.output_dir = output_dir or "."
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+
         # Event-Based CSV Logging Initialization
         self.session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.csv_filename = f"session_log_{self.session_timestamp}.csv"
+        self.csv_filename = os.path.join(self.output_dir, f"session_log_{self.session_timestamp}.csv")
         self._init_csv()
         
         # State Tracking for CSV
@@ -252,6 +259,10 @@ class SuspicionScoringProcessor:
         height = height if height % 2 == 0 else height - 1
         
         # Use cv2.VideoWriter with H.264 codec
+        # The CSV stores the bare filename for readability; resolve it against the
+        # session's output folder here.
+        filename = os.path.join(self.output_dir, filename)
+
         fourcc = cv2.VideoWriter_fourcc(*'avc1')
         out = cv2.VideoWriter(filename, fourcc, 30.0, (width, height))
         

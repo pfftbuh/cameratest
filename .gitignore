@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+
+# Session output: CSV logs, evidence clips and heatmaps are generated per run
+whatever/sessions/
+sessions/
+session_log_*.csv
+session_heatmap_*.png
+heatmap_*.png
+*_violation_*.mp4
+*_violation_*.avi
+
+# Editors / OS
+# (.vscode/ and calibration_data.json are already tracked, so they are not
+# listed here — an ignore rule would have no effect on them.)
+.idea/
+.DS_Store
+Thumbs.db
