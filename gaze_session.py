@@ -173,6 +173,10 @@ class GazeSession:
             except Exception:
                 # A malformed landmark set should cost one frame, not the session.
                 pass
+        else:
+            # No face detected - still send the original frame so frontend keeps updating
+            if self.include_debug_frames:
+                face_debug = self._encode(frame)
 
         # ----------------------------------------------------------- eye pass
         eye_results = self.eye_processor.process_frame(frame)

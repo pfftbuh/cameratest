@@ -72,7 +72,7 @@ class ProctorConsumer(AsyncWebsocketConsumer):
         return GazeSession(
             session_id=self.session_id,
             output_dir=str(output_dir / self.session_id) if output_dir else None,
-            include_debug_frames=getattr(settings, 'GAZE_DEBUG_FRAMES', False),
+            include_debug_frames=getattr(settings, 'GAZE_DEBUG_FRAMES', True),
         )
 
     async def receive(self, text_data=None, bytes_data=None):

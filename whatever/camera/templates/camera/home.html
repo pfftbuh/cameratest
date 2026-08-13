@@ -47,7 +47,7 @@ static-files configuration, nothing extra to go wrong on defence day.
   .panel { background: var(--panel); border: 1px solid var(--line);
            border-radius: 10px; padding: 14px; }
 
-  video, .feed img { width: 100%; border-radius: 6px; display: block; background: #000; }
+  video, .feed img { width: 640px; height: 480px; border-radius: 6px; display: block; background: #000; }
   video.hidden { display: none; }
 
   /* Gaze grid: a 1920x1080 screen drawn at 16:9, with the 3x3 regions marked. */
@@ -109,10 +109,18 @@ static-files configuration, nothing extra to go wrong on defence day.
 
   <div class="panel">
     <h2>Camera</h2>
+    <div style="margin-bottom: 12px;">
+      <label for="camera-select" style="color: var(--muted); font-size: 12px; display: block; margin-bottom: 6px;">
+        Select Camera
+      </label>
+      <select id="camera-select" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: #262b36; color: var(--text); font: inherit;">
+        <option value="">Loading cameras...</option>
+      </select>
+    </div>
     <div class="feed">
       <!-- The raw webcam is shown until the server starts returning annotated
            frames; after that the annotated view replaces it. -->
-      <video id="video" autoplay playsinline muted></video>
+      <video id="video" autoplay playsinline muted class="hidden"></video>
       <img id="annotated" alt="" hidden>
     </div>
     <dl class="rows" style="margin-top:12px">
@@ -178,6 +186,7 @@ static-files configuration, nothing extra to go wrong on defence day.
 
   let ws = null, streaming = false, inflight = false;
   let sent = 0, processed = 0, lastStage = null;
+  let switchingCamera = false;
 
   // ---------------------------------------------------------------- utilities
 
@@ -220,14 +229,85 @@ static-files configuration, nothing extra to go wrong on defence day.
 
   // ------------------------------------------------------------------- camera
 
-  async function startCamera() {
+  let currentStream = null;
+  let currentDeviceId = null;
+
+  // Enumerate available cameras and populate the dropdown
+  async function enumerateCameras() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: CAPTURE_W, height: CAPTURE_H }, audio: false
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+      
+      const select = $("camera-select");
+      select.innerHTML = '';
+      
+      if (videoDevices.length === 0) {
+        select.innerHTML = '<option value="">No cameras found</option>';
+        log("No cameras detected.", true);
+        return [];
+      }
+      
+      videoDevices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || `Camera ${index + 1}`;
+        select.appendChild(option);
       });
+      
+      return videoDevices;
+    } catch (err) {
+      log("Failed to enumerate cameras: " + err.name, true);
+      return [];
+    }
+  }
+
+  // Stop the current camera stream properly
+  function stopCamera() {
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => {
+        track.stop();
+        log("Stopped camera track: " + track.label);
+      });
+      currentStream = null;
+    }
+    if (video.srcObject) {
+      video.srcObject = null;
+    }
+    // Clear the stale annotated frame - video stays hidden for frame capture only
+    annotated.hidden = true;
+    annotated.removeAttribute('src');
+  }
+
+  async function startCamera(deviceId = null) {
+    // Stop any existing stream first
+    stopCamera();
+    
+    try {
+      const constraints = {
+        video: {
+          width: CAPTURE_W,
+          height: CAPTURE_H
+        },
+        audio: false
+      };
+      
+      // If a specific device is requested, add it to constraints
+      if (deviceId) {
+        constraints.video.deviceId = { exact: deviceId };
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      currentStream = stream;
+      currentDeviceId = deviceId;
+      
       video.srcObject = stream;
       await video.play();
-      log("Camera started.");
+      
+      // Get the actual device label
+      const track = stream.getVideoTracks()[0];
+      const label = track.label || "Unknown camera";
+      log("Camera started: " + label);
+      
       return true;
     } catch (err) {
       // Almost always one of: permission denied, no camera, or a page served
@@ -240,6 +320,30 @@ static-files configuration, nothing extra to go wrong on defence day.
       return false;
     }
   }
+
+  // Handle camera selection change
+  $("camera-select").addEventListener("change", async (e) => {
+    const deviceId = e.target.value;
+    if (!deviceId) return;
+    
+    log("Switching camera...");
+    streaming = false; // Pause frame capture during switch
+    switchingCamera = true; // Flag to ignore stale annotated frames
+    
+    const ok = await startCamera(deviceId);
+    
+    if (ok) {
+      // Wait a brief moment for the new camera to stabilize
+      setTimeout(() => {
+        streaming = true; // Resume frame capture
+        switchingCamera = false; // Accept new annotated frames
+        log("Camera switched successfully. Session continues.");
+      }, 300);
+    } else {
+      switchingCamera = false;
+      log("Failed to switch camera.", true);
+    }
+  });
 
   function captureFrame() {
     return new Promise((resolve) => {
@@ -325,7 +429,8 @@ static-files configuration, nothing extra to go wrong on defence day.
     placeDot($("dot-weighted"), r.weighted_screen_pos);
 
     // Swap the raw feed for the server's annotated view once it arrives.
-    if (r.debug_face) {
+    // Skip this if we're switching cameras to avoid showing stale frames.
+    if (r.debug_face && !switchingCamera) {
       annotated.src = r.debug_face;
       annotated.hidden = false;
       video.classList.add("hidden");
@@ -380,6 +485,15 @@ static-files configuration, nothing extra to go wrong on defence day.
     }
   });
 
+  $("disc-btn").addEventListener("click", () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close(1000);
+      log("Disconnected by user.");
+    }
+    stopCamera();
+    streaming = false;
+  });
+
   // -------------------------------------------------------- keypress tracking
 
   // Replaces KeypressTrackProcessor, whose global hook would have read the
@@ -425,12 +539,24 @@ static-files configuration, nothing extra to go wrong on defence day.
 
   // ---------------------------------------------------------------- lifecycle
 
-  window.addEventListener("beforeunload", () => { if (ws) ws.close(1000); });
+  window.addEventListener("beforeunload", () => { 
+    stopCamera(); // Clean up camera on page unload
+    if (ws) ws.close(1000); 
+  });
 
   (async function start() {
     connect();
-    const ok = await startCamera();
-    if (ok) setInterval(pump, Math.round(1000 / TARGET_FPS));
+    
+    // Enumerate cameras first to populate the dropdown
+    const cameras = await enumerateCameras();
+    
+    // Start with the first available camera (or user can select later)
+    if (cameras.length > 0) {
+      const ok = await startCamera(cameras[0].deviceId);
+      if (ok) setInterval(pump, Math.round(1000 / TARGET_FPS));
+    } else {
+      log("No cameras available to start.", true);
+    }
   })();
 })();
 </script>

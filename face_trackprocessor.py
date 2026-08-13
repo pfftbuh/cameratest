@@ -66,14 +66,14 @@ class FaceLandmarkerProcessor:
                 distance = fdp_processor.estimate_distance(left_eye, right_eye)
                 
                 # Draw the distance on the frame.
-                cv2.putText(frame, f"Distance: {distance:.2f} cm", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                #cv2.putText(frame, f"Distance: {distance:.2f} cm", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
                 
                 key_points = {}
                 for name, idx in self.KEY_FACE_LANDMARKS.items():
                     pt = landmark_to_np(landmarks[idx], w, h)
                     key_points[name] = pt
                     x, y = int(pt[0]), int(pt[1])
-                    cv2.circle(frame, (x, y), 2, (0, 0, 255), -1)
+                    #cv2.circle(frame, (x, y), 2, (0, 0, 255), -1)
                 
                 # Draw axes and rays based on the key points
                 left_pt = key_points['left']
@@ -123,14 +123,13 @@ class FaceLandmarkerProcessor:
                 ray_end_y = int((front_pt[1] + ray_end_y) / 2)
 
                 # Draw ray in frame.
-                cv2.line(
-                    frame,
-                    (avg_origin_x, avg_origin_y - ray_padding_y),
-                    (ray_end_x, ray_end_y - ray_padding_y),
-                    (0, 0, 255),
-                    2,
-                )
-                frame = cv2.resize(frame, (600, 300), interpolation=cv2.INTER_AREA)
+                # cv2.line(
+                #     frame,
+                #     (avg_origin_x, avg_origin_y - ray_padding_y),
+                #     (ray_end_x, ray_end_y - ray_padding_y),
+                #     (0, 0, 255),
+                #     2,
+                # )
             face_cx = (key_points['left'][0] + key_points['right'][0]) / 2
             face_cy = (key_points['top'][1] + key_points['bottom'][1]) / 2
             if avg_direction is not None:
