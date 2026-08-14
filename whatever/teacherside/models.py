@@ -10,7 +10,8 @@ class Exam(models.Model):
     class_designation = models.CharField(max_length=100)
     timelimit = models.DurationField(help_text="Enter the time limit for the exam (e.g., 1:30:00 for 1 hour 30 minutes).")
     attempt_limit = models.PositiveIntegerField(help_text="Enter the maximum number of attempts allowed for this exam.")
-    access_code = models.CharField(max_length=20, help_text="Enter a unique access code for the exam.")
+    # Access code can be blank if the exam is open to all students, otherwise it can be set to a specific code for restricted access
+    access_code = models.CharField(max_length=20, null=True, blank=True, help_text="Enter a unique access code for the exam.")
     access_status = models.BooleanField(default=False, help_text="Indicates whether the exam is currently accessible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

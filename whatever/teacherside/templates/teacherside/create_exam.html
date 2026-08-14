@@ -10,36 +10,60 @@
     {% csrf_token %}
     <div class="field">
       <label for="title">Title</label>
+        {% for error in form.title.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
       <input type="text" name="title" id="title" required>
     </div>
     <div class="field">
       <label for="description">Description</label>
       <textarea name="description" id="description" required></textarea>
+        {% for error in form.description.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
     </div>
     <div class="field">
       <label for="deadline">Deadline</label>
       <input type="datetime-local" name="deadline" id="deadline" required>
+      {% for error in form.deadline.errors %}
+          <p class="field-error">{{ error }}</p>
+      {% endfor %}
     </div>
     <div class="field">
       <label for="class_designation">Class Designation</label>
       <input type="text" name="class_designation" id="class_designation" required>
+        {% for error in form.class_designation.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
     </div>
     <div class="field">
         <label for="timelimit">Time Limit</label>
         <input type="number" name="timelimit" id="timelimit" min="20" required>
+        {% for error in form.timelimit.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
         <small>Enter the time limit in minutes (e.g., 90 for 1 hour 30 minutes).</small>
     </div>
     <div class="field">
         <label for="attempt_limit">Attempt Limit</label>
         <input type="number" name="attempt_limit" id="attempt_limit" min="1" required>
+        {% for error in form.attempt_limit.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
     </div>
     <div class="field">
         <label for="access_code">Access Code</label>
         <input type="text" name="access_code" id="access_code" required>
+        {% for error in form.access_code.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
     </div>
     <div class="field">
         <label for="access_status">Access Status</label>
-        <input type="checkbox" name="access_status" id="access_status">
+        <input type="checkbox" name="access_status" id="access_status"> Open on creation
+        {% for error in form.access_status.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
     </div>
     <button type="submit" class="primary">Create Exam</button>
   </form>
