@@ -1,0 +1,28 @@
+{% extends "teacherside/base.html" %}
+{% block content %}
+<h1>Exams List</h1>
+<div class="card">
+  <h2 style="font-size:17px;margin:0 0 6px">Create Exam</h2>
+  <p class="sub" style="margin-bottom:14px">
+    Create a new exam for your students.
+  </p>
+  <p style="margin-bottom:0">
+    <a class="btn" href="{% url 'create_exam' %}">Create Exam</a>
+  </p>
+</div>
+<div class="card">
+    <h2 style="font-size:17px;margin:0 0 6px">Existing Exams</h2>
+    <p class="sub" style="margin-bottom:14px">
+        View and manage your existing exams.
+    </p>
+    <ul>
+        {% for exam in exams %}
+        <li>
+            <a href="{% url 'exam_detail' exam.exam_id %}">{{ exam.title }}</a> - {{ exam.description }} (Deadline: {{ exam.deadline }})
+        </li>
+        {% empty %}
+        <li>No exams available.</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
