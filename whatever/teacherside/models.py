@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import models
 
 # Create your models here.
@@ -18,6 +20,7 @@ class Exam(models.Model):
 
     def __str__(self):
         return self.title
+    
 
 # Exam Questions Database
 # Each question is linked to an exam
