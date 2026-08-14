@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Welcome, Teacher!</h1>
+
+<div class="card">
+  <h2 style="font-size:17px;margin:0 0 6px">Create Exam</h2>
+  <p class="sub" style="margin-bottom:14px">
+    Create a new exam for your students.
+  </p>
+  <p style="margin-bottom:0">
+    <a class="btn" href="{% url 'create_exam' %}">Create Exam</a>
+  </p>
+</div>
+{% endblock %}

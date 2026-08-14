@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'camera',
     'studentside',
     'homepage',
+    'teacherside',
 ]
 
 MIDDLEWARE = [

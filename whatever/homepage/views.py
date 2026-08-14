@@ -30,23 +30,28 @@ def signup_view(request):
 
 
 def login_view(request):
-    if request.user.role == 'student':
-        return redirect('student_home')
+    # Only check role if the user is already authenticated
+    if request.user.is_authenticated:
+        if request.user.role == 'student':
+            return redirect('student_home')
+        elif request.user.role == 'teacher':
+            return redirect('teacher_home')
 
-    # AuthenticationForm does the authenticate() call and rejects inactive
-    # accounts, so a wrong password produces a form error rather than a crash.
+    # Otherwise, show login form
     form = AuthenticationForm(request, data=request.POST or None)
 
     if request.method == 'POST' and form.is_valid():
         auth_login(request, form.get_user())
 
-        # Honour ?next= so @login_required sends people back where they were,
-        # but only for local paths — an open redirect would let someone bounce
-        # a student off this login page to an external site.
-        next_url = request.POST.get('next') or request.GET.get('next')
-        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
-            return redirect(next_url)
-        return redirect('student_home')
+        # After login, redirect based on role
+        user = form.get_user()
+        if user.role == 'student':
+            return redirect('student_home')
+        elif user.role == 'teacher':
+            return redirect('teacher_home')
+
+        # Fallback if no role matched
+        return redirect('landing_page')
 
     return render(request, 'homepage/login_page.html', {
         'form': form,
