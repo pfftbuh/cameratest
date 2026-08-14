@@ -13,12 +13,7 @@ def landing_page(request):
 
 
 def signup_view(request):
-    """Create a student account, then send them to the login page.
-
-    Deliberately not logging the new user straight in: signing in with the
-    credentials just created is the step that proves registration worked, and
-    it's the flow that gets demonstrated.
-    """
+    """Create a student account, then send them to the login page."""
     if request.user.is_authenticated:
         return redirect('student_home')
 
@@ -26,10 +21,7 @@ def signup_view(request):
         form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save()
-            messages.success(
-                request,
-                f'Account created for {user.username}. Sign in with your new credentials.'
-            )
+            messages.success(request, f'Account created for {user.username}.')
             return redirect('login')
     else:
         form = SignUpForm()
@@ -38,7 +30,7 @@ def signup_view(request):
 
 
 def login_view(request):
-    if request.user.is_authenticated:
+    if request.user.role == 'student':
         return redirect('student_home')
 
     # AuthenticationForm does the authenticate() call and rejects inactive
