@@ -4,4 +4,44 @@
 
 {% block content %}
 
+<h1>Create Exam</h1>
+<div class="card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <div class="field">
+      <label for="title">Title</label>
+      <input type="text" name="title" id="title" required>
+    </div>
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea name="description" id="description" required></textarea>
+    </div>
+    <div class="field">
+      <label for="deadline">Deadline</label>
+      <input type="datetime-local" name="deadline" id="deadline" required>
+    </div>
+    <div class="field">
+      <label for="class_designation">Class Designation</label>
+      <input type="text" name="class_designation" id="class_designation" required>
+    </div>
+    <div class="field">
+        <label for="timelimit">Time Limit</label>
+        <input type="number" name="timelimit" id="timelimit" min="20" required>
+        <small>Enter the time limit in minutes (e.g., 90 for 1 hour 30 minutes).</small>
+    </div>
+    <div class="field">
+        <label for="attempt_limit">Attempt Limit</label>
+        <input type="number" name="attempt_limit" id="attempt_limit" min="1" required>
+    </div>
+    <div class="field">
+        <label for="access_code">Access Code</label>
+        <input type="text" name="access_code" id="access_code" required>
+    </div>
+    <div class="field">
+        <label for="access_status">Access Status</label>
+        <input type="checkbox" name="access_status" id="access_status">
+    </div>
+    <button type="submit" class="primary">Create Exam</button>
+  </form>
+</div>
 {% endblock %}

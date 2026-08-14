@@ -2,6 +2,7 @@ from django.db import models
 
 # Create your models here.
 class Exam(models.Model):
+    # Exam ID is automatically generated and set as the primary key
     exam_id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=200)
     description = models.TextField()
