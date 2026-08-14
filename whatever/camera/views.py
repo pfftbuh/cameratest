@@ -1,8 +1,12 @@
 import uuid
 
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 
 
+# The proctoring session must belong to an identifiable student, otherwise the
+# CSV log and evidence clips it produces cannot be attributed to anyone.
+@login_required
 def home(request):
     """Serve the proctoring page with a fresh session id.
 

@@ -1,9 +1,23 @@
-<html>
-    <head>
-        <title>Student Landing Page</title>
-    </head>
-    <body>
-        <h1>Welcome to the Student Landing Page</h1>
-        <p>This is the landing page for students.</p>
-    </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Your exams — MAKITEST{% endblock %}
+
+{% block content %}
+<h1>Welcome, {{ user.username }}</h1>
+<p class="sub">Exams available to you.</p>
+
+<div class="card">
+  <h2 style="font-size:17px;margin:0 0 6px">Test Exam</h2>
+  <p class="sub" style="margin-bottom:14px">
+    A short practice exam used to check that proctoring works on your machine.
+  </p>
+  <p style="margin-bottom:0">
+    <a class="btn" href="{% url 'test_exam' %}">Open exam</a>
+  </p>
+</div>
+
+<p class="foot">
+  Before starting, make sure your webcam is connected and no other application
+  is using it.
+</p>
+{% endblock %}

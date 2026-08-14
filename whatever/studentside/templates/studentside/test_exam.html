@@ -1,10 +1,27 @@
-<html>
-    <head>
-        <title>Test Exam</title>
-    </head>
-    <body>
-        <h1>Welcome to the Test Exam Page</h1>
-        <p>This is the test exam page for students.</p>
+{% extends "base.html" %}
 
-        
-    </body>
+{% block title %}Test Exam — MAKITEST{% endblock %}
+
+{% block content %}
+<h1>Test Exam</h1>
+<p class="sub">Read before you begin.</p>
+
+<div class="card">
+  <p>Once you start, the following are monitored and recorded:</p>
+  <ul>
+    <li>Where you are looking, via head pose and eye gaze</li>
+    <li>Whether your face is visible to the camera</li>
+    <li>Leaving the exam window or switching tabs</li>
+    <li>Copy, paste and other forbidden keyboard shortcuts</li>
+  </ul>
+  <p>
+    You will be asked to allow camera access, then to complete a short
+    calibration — five stages, looking at each edge of the screen in turn.
+    Tracking only begins once calibration is finished.
+  </p>
+  <p style="margin-bottom:0">
+    <a class="btn" href="{% url 'home' %}">Start proctored exam</a>
+    <a class="btn ghost" href="{% url 'student_home' %}">Back</a>
+  </p>
+</div>
+{% endblock %}

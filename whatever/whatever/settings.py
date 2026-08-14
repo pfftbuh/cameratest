@@ -74,6 +74,12 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'whatever.urls'
 
+# Where @login_required sends anonymous visitors, and where people land after
+# signing in or out.
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'student_home'
+LOGOUT_REDIRECT_URL = 'landing_page'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
