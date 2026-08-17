@@ -7,4 +7,6 @@ urlpatterns = [
     path('exam_details/', views.exam_details, name='exam_details'),
     path('exam_session/', views.exam_session, name='exam_session'),
     path('save-tracking-thresholds/', views.save_tracking_thresholds, name='save_tracking_thresholds'),
+    path('submit_exam/', views.submit_exam, name='submit_exam'),
+    path('exam_results/<int:attempt_id>/', views.exam_results, name='exam_results'),
 ]

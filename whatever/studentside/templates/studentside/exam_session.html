@@ -15,7 +15,7 @@
     </div>
   </header>
 
-  <form id="exam-form" method="post">
+  <form id="exam-form" method="post" action="{% url 'submit_exam' %}">
     {% csrf_token %}
     
     {% for question in questions %}
@@ -143,16 +143,11 @@
 
   // Form submission
   document.getElementById('exam-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    
-    // Remove beforeunload listener so the form can submit
-    window.removeEventListener('beforeunload', () => {});
-    
-    if (confirm('Are you sure you want to submit your exam? You cannot change your answers after submission.')) {
-      // Here you would normally submit to a view that processes the answers
-      alert('Exam submitted successfully! (Add submission logic in Django view)');
-      window.location.href = '{% url "student_home" %}';
+    if (!confirm('Are you sure you want to submit your exam? You cannot change your answers after submission.')) {
+      e.preventDefault();
+      return false;
     }
+    // Form will submit normally to submit_exam view
   });
 </script>
 {% endblock %}

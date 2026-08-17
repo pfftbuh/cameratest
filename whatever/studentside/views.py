@@ -154,14 +154,184 @@ def save_tracking_thresholds(request):
         return JsonResponse({'success': False, 'error': 'Invalid JSON'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
-        
+
+
+from django.shortcuts import get_object_or_404
+from .models import StudentExamAttempt, StudentAnswer
+
+
+@login_required
 def submit_exam(request):
+    """Handle exam submission and save answers"""
+    if request.method != 'POST':
+        return redirect('student_home')
+    
     exam_id = request.session.get('current_exam_id')
-    # ... save answers ...
+    if not exam_id:
+        messages.error(request, 'No active exam found.')
+        return redirect('student_home')
     
-    # Clear the start time
-    session_key = f'exam_{exam_id}_start_time'
-    if session_key in request.session:
+    try:
+        exam = Exam.objects.get(exam_id=exam_id)
+        
+        # Get start time
+        session_key = f'exam_{exam_id}_start_time'
+        start_time_str = request.session.get(session_key)
+        
+        if not start_time_str:
+            messages.error(request, 'Exam start time not found.')
+            return redirect('student_home')
+        
+        start_time = timezone.datetime.fromisoformat(start_time_str)
+        if timezone.is_naive(start_time):
+            start_time = timezone.make_aware(start_time)
+        
+        submit_time = timezone.now()
+        
+        # Determine attempt number
+        previous_attempts = StudentExamAttempt.objects.filter(
+            student=request.user,
+            exam=exam
+        ).count()
+        
+        attempt_number = previous_attempts + 1
+        
+        # Check attempt limit
+        if exam.attempt_limit and attempt_number > exam.attempt_limit:
+            messages.error(request, 'You have exceeded the maximum number of attempts.')
+            return redirect('student_home')
+        
+        # Create exam attempt
+        exam_attempt = StudentExamAttempt.objects.create(
+            student=request.user,
+            exam=exam,
+            attempt_number=attempt_number,
+            completed_at=submit_time
+        )
+        
+        # Save answers
+        questions = exam.questions.all()
+        for question in questions:
+            field_name = f'question_{question.question_id}'
+            answer_value = request.POST.get(field_name)
+            
+            if answer_value:
+                StudentAnswer.objects.create(
+                    student_exam_attempt=exam_attempt,
+                    question=question,
+                    answer_text=answer_value
+                )
+        
+        # Auto-grade
+        grade_exam_attempt(exam_attempt)
+        
+        # Clear session
         del request.session[session_key]
+        if 'current_exam_id' in request.session:
+            del request.session['current_exam_id']
+        
+        messages.success(request, f'Exam submitted! Score: {exam_attempt.score}%')
+        return redirect('exam_results', attempt_id=exam_attempt.id)
+        
+    except Exam.DoesNotExist:
+        messages.error(request, 'Exam not found.')
+        return redirect('student_home')
+
+
+def grade_exam_attempt(exam_attempt):
+    """Auto-grade the exam"""
+    questions = exam_attempt.exam.questions.all()
+    total_questions = questions.count()
+    correct_answers = 0
     
-    # ... rest of submission logic ...
+    for question in questions:
+        # Parse choices if string
+        if question.choices and isinstance(question.choices, str):
+            question.choices = json.loads(question.choices)
+        
+        try:
+            student_answer = StudentAnswer.objects.get(
+                student_exam_attempt=exam_attempt,
+                question=question
+            )
+            
+            if question.question_type == 'MCQ':
+                try:
+                    selected_index = int(student_answer.answer_text)
+                    if 0 <= selected_index < len(question.choices):
+                        selected_choice = question.choices[selected_index]
+                        if selected_choice.get('text') == question.correct_answer_text:
+                            correct_answers += 1
+                except (ValueError, IndexError, TypeError):
+                    pass
+            
+            elif question.question_type == 'TF':
+                if student_answer.answer_text == question.correct_answer_text:
+                    correct_answers += 1
+            
+            elif question.question_type in ['NUM', 'FIB']:
+                if student_answer.answer_text and question.correct_answer_text:
+                    if student_answer.answer_text.strip().lower() == question.correct_answer_text.strip().lower():
+                        correct_answers += 1
+        
+        except StudentAnswer.DoesNotExist:
+            pass
+    
+    if total_questions > 0:
+        exam_attempt.score = (correct_answers / total_questions) * 100
+    else:
+        exam_attempt.score = 0
+    
+    exam_attempt.save()
+
+
+@login_required
+def exam_results(request, attempt_id):
+    """Display results"""
+    exam_attempt = get_object_or_404(
+        StudentExamAttempt, 
+        id=attempt_id, 
+        student=request.user
+    )
+    
+    answers = exam_attempt.answers.all().select_related('question')
+    answer_dict = {answer.question.question_id: answer for answer in answers}
+    
+    questions_with_answers = []
+    for question in exam_attempt.exam.questions.all().order_by('question_id'):
+        if question.choices and isinstance(question.choices, str):
+            question.choices = json.loads(question.choices)
+        
+        student_answer = answer_dict.get(question.question_id)
+        is_correct = False
+        student_answer_text = None
+        
+        if student_answer:
+            student_answer_text = student_answer.answer_text
+            
+            if question.question_type == 'MCQ':
+                try:
+                    idx = int(student_answer.answer_text)
+                    if 0 <= idx < len(question.choices):
+                        choice = question.choices[idx]
+                        student_answer_text = choice.get('text')
+                        is_correct = (choice.get('text') == question.correct_answer_text)
+                except:
+                    pass
+            elif question.question_type == 'TF':
+                is_correct = (student_answer.answer_text == question.correct_answer_text)
+            elif question.question_type in ['NUM', 'FIB']:
+                if question.correct_answer_text:
+                    is_correct = (student_answer.answer_text.strip().lower() == 
+                                question.correct_answer_text.strip().lower())
+        
+        questions_with_answers.append({
+            'question': question,
+            'student_answer': student_answer_text,
+            'is_correct': is_correct
+        })
+    
+    return render(request, 'studentside/exam_results.html', {
+        'exam_attempt': exam_attempt,
+        'questions_with_answers': questions_with_answers,
+    })

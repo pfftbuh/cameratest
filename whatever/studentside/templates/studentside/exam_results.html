@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Exam Results — MAKITEST{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+  <h1>Exam Results</h1>
+  
+  <div style="background: var(--panel); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+    <h2>{{ exam_attempt.exam.title }}</h2>
+    <p><strong>Attempt:</strong> {{ exam_attempt.attempt_number }}</p>
+    <p><strong>Score:</strong> 
+      <span style="font-size: 24px; font-weight: 600; color: {% if exam_attempt.score >= 75 %}var(--ok){% elif exam_attempt.score >= 50 %}var(--warn){% else %}var(--bad){% endif %};">
+        {{ exam_attempt.score|floatformat:2 }}%
+      </span>
+    </p>
+    <p><strong>Completed:</strong> {{ exam_attempt.completed_at|date:"M d, Y H:i" }}</p>
+  </div>
+  
+  <h3>Your Answers:</h3>
+  {% for item in questions_with_answers %}
+  <div style="margin-bottom: 20px; padding: 15px; background: var(--panel); border-radius: 8px; border-left: 3px solid {% if item.is_correct %}var(--ok){% else %}var(--bad){% endif %};">
+    <p style="margin-bottom: 10px;"><strong>Question {{ forloop.counter }}:</strong> {{ item.question.question_text }}</p>
+    
+    {% if item.question.question_image %}
+    <img src="{{ item.question.question_image.url }}" alt="Question" style="max-width: 300px; margin-bottom: 10px; border-radius: 4px;">
+    {% endif %}
+    
+    <p><strong>Your Answer:</strong> 
+      {% if item.student_answer %}
+        <span style="{% if item.is_correct %}color: var(--ok);{% else %}color: var(--bad);{% endif %}">
+          {{ item.student_answer }}
+        </span>
+      {% else %}
+        <span style="color: var(--muted);">(Not answered)</span>
+      {% endif %}
+    </p>
+    
+    <p><strong>Correct Answer:</strong> <span style="color: var(--ok);">{{ item.question.correct_answer_text }}</span></p>
+    
+    <p style="margin-top: 10px;">
+      {% if item.is_correct %}
+        <span style="color: var(--ok); font-weight: 600;">✓ Correct</span>
+      {% else %}
+        <span style="color: var(--bad); font-weight: 600;">✗ Incorrect</span>
+      {% endif %}
+    </p>
+  </div>
+  {% endfor %}
+  
+  <div style="margin-top: 30px; display: flex; gap: 15px;">
+    <a href="{% url 'student_home' %}" class="btn primary">Back to Home</a>
+    {% if exam_attempt.attempt_number < exam_attempt.exam.attempt_limit %}
+    <a href="{% url 'exam_details' %}?exam_id={{ exam_attempt.exam.exam_id }}" class="btn ghost">Retake Exam</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
