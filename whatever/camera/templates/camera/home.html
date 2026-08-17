@@ -152,7 +152,10 @@ static-files configuration, nothing extra to go wrong on defence day.
     <div class="prompt" id="cal-prompt">Waiting for the camera…</div>
     <div class="bar"><i id="cal-bar"></i></div>
     <button id="cal-btn" class="primary" disabled>Start calibration</button>
-    <button id="disc-btn" style="margin-left:10px">Disconnect</button>
+    <button id="disc-btn" style="margin-left:10px">Back to home</button>
+    {% if exam_id %}
+    <button id="start-exam" class="primary" style="margin-left:10px" disabled>Start Exam</button>
+    {% endif %}
     <span id="cal-stage" class="hint" style="margin-left:10px"></span>
     <p class="hint" style="margin-bottom:0">
       Hold your gaze on the target while samples are collected. Tracking results
@@ -172,6 +175,8 @@ static-files configuration, nothing extra to go wrong on defence day.
   "use strict";
 
   const SESSION_ID = "{{ session_id }}";
+  const USER_ROLE = "{{ user_role }}";
+  const EXAM_ID = "{{ exam_id|default:'' }}";
   const CAPTURE_W = 640, CAPTURE_H = 480;
   const TARGET_FPS = 10;
   const JPEG_QUALITY = 0.7;
@@ -405,6 +410,9 @@ static-files configuration, nothing extra to go wrong on defence day.
       } else if (msg.type === "calibration") {
         applyCalibration(msg);
         if (msg.message) log(msg.message, !msg.ok);
+      } else if (msg.type === "calibration_json") {
+        // Save thresholds to database when calibration completes
+        saveThresholdsToDatabase(msg.thresholds);
       } else if (msg.type === "error") {
         log("Server error: " + msg.message, true);
       }
@@ -464,9 +472,15 @@ static-files configuration, nothing extra to go wrong on defence day.
     $("cal-bar").style.width = pct + "%";
 
     const btn = $("cal-btn");
+    const startExamBtn = $("start-exam");
+    
     if (cal.calibrated) {
       btn.disabled = true;
       btn.textContent = "Calibrated";
+      // Enable the Start Exam button when calibration is complete
+      if (startExamBtn && EXAM_ID) {
+        startExamBtn.disabled = false;
+      }
     } else {
       btn.disabled = cal.collecting;
       btn.textContent = cal.collecting ? "Collecting samples…"
@@ -488,11 +502,31 @@ static-files configuration, nothing extra to go wrong on defence day.
   $("disc-btn").addEventListener("click", () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.close(1000);
-      log("Disconnected by user.");
+      log("Disconnecting and returning to home...");
     }
     stopCamera();
     streaming = false;
+    
+    // Redirect to the user's role landing page
+    const redirectUrl = USER_ROLE === 'student' ? '/studentside/' : 
+                        USER_ROLE === 'teacher' ? '/teacherside/' : '/';
+    window.location.href = redirectUrl;
   });
+
+  const startExamBtn = $("start-exam");
+  if (startExamBtn) {
+    startExamBtn.addEventListener("click", () => {
+      if (!EXAM_ID) {
+        log("No exam selected. Please return home and select an exam.", true);
+        return;
+      }
+      
+      log("Starting exam...");
+      // Keep WebSocket and camera running during the exam
+      // Redirect to exam session
+      window.location.href = '/studentside/exam_session/';
+    });
+  }
 
   // -------------------------------------------------------- keypress tracking
 
@@ -538,6 +572,43 @@ static-files configuration, nothing extra to go wrong on defence day.
   });
 
   // ---------------------------------------------------------------- lifecycle
+
+  // CSRF token helper
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  // Save thresholds to database
+  function saveThresholdsToDatabase(thresholds) {
+    fetch('/studentside/save-tracking-thresholds/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: JSON.stringify({ thresholds: thresholds })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        log("✓ Calibration saved to your profile.");
+      } else {
+        log("Failed to save calibration: " + data.error, true);
+      }
+    })
+    .catch(err => log("Error saving calibration: " + err, true));
+  }
 
   window.addEventListener("beforeunload", () => { 
     stopCamera(); // Clean up camera on page unload

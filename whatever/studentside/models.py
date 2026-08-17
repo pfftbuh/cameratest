@@ -24,3 +24,24 @@ class StudentAnswer(models.Model):
 
     def __str__(self):
         return f"Answer for {self.question} by {self.student_exam_attempt.student.username}"
+
+# Student Gaze Tracking Thresholds
+class StudentTrackingThresholds(models.Model):
+    student = models.OneToOneField('homepage.CustomUser', on_delete=models.CASCADE, limit_choices_to={'role': 'student'})
+    
+    # Individual calibration threshold fields
+    calibration_up = models.FloatField()
+    calibration_down = models.FloatField()
+    calibration_center = models.FloatField()
+    calibration_left = models.FloatField()
+    calibration_right = models.FloatField()
+    calibration_v_center = models.FloatField()
+    iris_boxheight_center = models.FloatField()
+    iris_boxheight_up = models.FloatField()
+    iris_boxheight_down = models.FloatField()
+    
+    calibrated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Thresholds for {self.student.username}"
+    

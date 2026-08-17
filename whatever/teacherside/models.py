@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.db import models
+from django.conf import settings  # Add this import at the top
 
 # Create your models here.
 class Exam(models.Model):
@@ -15,6 +16,7 @@ class Exam(models.Model):
     # Access code can be blank if the exam is open to all students, otherwise it can be set to a specific code for restricted access
     access_code = models.CharField(max_length=20, null=True, blank=True, help_text="Enter a unique access code for the exam.")
     access_status = models.BooleanField(default=False, help_text="Indicates whether the exam is currently accessible to students.")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_exams')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -75,4 +77,3 @@ class Question(models.Model):
     def __str__(self):
         return f"Question {self.question_id} for Exam {self.exam.title}"
 
-    

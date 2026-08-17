@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Test Exam — MAKITEST{% endblock %}
+{% block title %}{{ exam.title }} — MAKITEST{% endblock %}
 
 {% block content %}
-<h1>Test Exam</h1>
-<p class="sub">Read before you begin.</p>
-
 <div class="card">
+  <h1>{{ exam.title }} by {{ exam.created_by.username }}</h1>
+  <p><strong>Description:</strong> {{ exam.description }}</p>
+  <p><strong>Time Limit:</strong> {{ exam.timelimit }} minutes</p>
+  <p><strong>Attempts Allowed:</strong> {{ exam.attempt_limit }}</p>
+  
+  <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--line);">
+
+  <h2><p>Read before you begin.</p></h2>
   <p>Once you start, the following are monitored and recorded:</p>
   <ul>
     <li>Where you are looking, via head pose and eye gaze</li>
@@ -20,7 +25,7 @@
     Tracking only begins once calibration is finished.
   </p>
   <p style="margin-bottom:0">
-    <a class="btn" href="{% url 'home' %}">Start proctored exam</a>
+    <a class="btn" href="{% url 'home' %}">Start Proctored Exam</a>
     <a class="btn ghost" href="{% url 'student_home' %}">Back</a>
   </p>
 </div>

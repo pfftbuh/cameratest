@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}{{ exam.title }} — MAKITEST{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 0 auto;">
+  <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--line);">
+    <div>
+      <h1 style="margin: 0 0 5px 0;">{{ exam.title }}</h1>
+      <p style="margin: 0; color: var(--muted);">{{ questions|length }} Question(s) | Time Limit: {{ exam.timelimit }}</p>
+    </div>
+    <div style="text-align: right;">
+      <div id="timer" style="font-size: 24px; font-weight: 600; color: var(--ok); font-family: monospace;"></div>
+      <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--muted);">Time Remaining</p>
+    </div>
+  </header>
+
+  <form id="exam-form" method="post">
+    {% csrf_token %}
+    
+    {% for question in questions %}
+    <div class="question-block" style="margin-bottom: 30px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;">
+      <h3 style="margin: 0 0 15px 0; color: var(--text);">
+        Question {{ forloop.counter }}
+        <span style="color: var(--muted); font-size: 14px; font-weight: normal;">({{ question.get_question_type_display }})</span>
+      </h3>
+      
+      <p style="font-size: 15px; line-height: 1.6; margin-bottom: 15px;">{{ question.question_text }}</p>
+      
+      {% if question.question_image %}
+      <div style="margin-bottom: 15px;">
+        <img src="{{ question.question_image.url }}" alt="Question image" style="max-width: 100%; height: auto; border-radius: 6px; border: 1px solid var(--line);">
+      </div>
+      {% endif %}
+
+      {% if question.question_type == 'MCQ' %}
+        <div class="choices" style="display: flex; flex-direction: column; gap: 10px;">
+          {% for choice in question.choices %}
+          <label class="choice-label" style="display: flex; align-items: center; padding: 12px; background: var(--bg); border: 2px solid var(--line); border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+            <input type="radio" name="question_{{ question.question_id }}" value="{{ forloop.counter0 }}" required style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+            <span style="flex: 1;">
+              {{ choice.text }}
+              {% if choice.image %}
+              <img src="{{ choice.image }}" alt="Choice image" style="display: block; margin-top: 8px; max-width: 200px; height: auto; border-radius: 4px;">
+              {% endif %}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+
+      {% elif question.question_type == 'TF' %}
+        <div class="choices" style="display: flex; gap: 15px;">
+          <label class="choice-label" style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; background: var(--bg); border: 2px solid var(--line); border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+            <input type="radio" name="question_{{ question.question_id }}" value="True" required style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+            <span style="font-weight: 600;">True</span>
+          </label>
+          <label class="choice-label" style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; background: var(--bg); border: 2px solid var(--line); border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+            <input type="radio" name="question_{{ question.question_id }}" value="False" required style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+            <span style="font-weight: 600;">False</span>
+          </label>
+        </div>
+
+      {% elif question.question_type == 'NUM' or question.question_type == 'FIB' %}
+        <input type="text" name="question_{{ question.question_id }}" required 
+               style="width: 100%; padding: 12px; background: var(--bg); border: 2px solid var(--line); border-radius: 6px; color: var(--text); font-size: 15px; font-family: inherit;"
+               placeholder="Enter your answer here...">
+
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <div style="display: flex; gap: 15px; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--line);">
+      <button type="button" class="btn ghost" onclick="if(confirm('Are you sure you want to exit the exam? Your progress will be lost.')) window.location.href='{% url 'student_home' %}';">
+        Exit Exam
+      </button>
+      <button type="submit" class="btn primary" style="font-size: 16px; padding: 12px 24px;">
+        Submit Exam
+      </button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .choice-label:hover {
+    border-color: var(--weighted) !important;
+    background: rgba(76, 201, 240, 0.05) !important;
+  }
+  
+  .choice-label:has(input:checked) {
+    border-color: var(--weighted) !important;
+    background: rgba(76, 201, 240, 0.1) !important;
+  }
+</style>
+
+<script>
+  // Timer functionality
+  const timerDisplay = document.getElementById('timer');
+  // Use server-calculated remaining time instead of full time limit
+  let timeRemaining = {{ remaining_seconds }};
+
+  function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function updateTimer() {
+    if (timeRemaining <= 0) {
+      timerDisplay.textContent = '00:00';
+      timerDisplay.style.color = 'var(--bad)';
+      alert('Time is up! Your exam will be submitted automatically.');
+      document.getElementById('exam-form').submit();
+      return;
+    }
+
+    timerDisplay.textContent = formatTime(timeRemaining);
+    
+    // Change color when time is running low (last 5 minutes)
+    if (timeRemaining <= 300) {
+      timerDisplay.style.color = 'var(--warn)';
+    }
+    if (timeRemaining <= 60) {
+      timerDisplay.style.color = 'var(--bad)';
+    }
+
+    timeRemaining--;
+  }
+
+  // Update timer immediately and then every second
+  updateTimer();
+  const timerInterval = setInterval(updateTimer, 1000);
+
+  // Prevent accidental page close
+  window.addEventListener('beforeunload', (e) => {
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  // Form submission
+  document.getElementById('exam-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    // Remove beforeunload listener so the form can submit
+    window.removeEventListener('beforeunload', () => {});
+    
+    if (confirm('Are you sure you want to submit your exam? You cannot change your answers after submission.')) {
+      // Here you would normally submit to a view that processes the answers
+      alert('Exam submitted successfully! (Add submission logic in Django view)');
+      window.location.href = '{% url "student_home" %}';
+    }
+  });
+</script>
+{% endblock %}
+

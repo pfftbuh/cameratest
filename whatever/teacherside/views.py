@@ -61,9 +61,8 @@ def create_exam(request):
         form = ExamForm(request.POST)
         if form.is_valid():
             exam = form.save(commit=False)
-            exam.access_status = False  # Always create exams with closed access
+            exam.created_by = request.user  # Manually set the creator
             exam.save()
-            messages.success(request, "Exam created successfully. Access is closed by default.")
             return redirect('add_questions', exam_id=exam.exam_id)
         else:
             messages.error(request, "There was an error creating the exam. Please check the form for errors.")

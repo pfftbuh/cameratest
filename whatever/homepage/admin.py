@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import CustomUser
 from teacherside.models import Exam, Question
+from studentside.models import StudentExamAttempt, StudentAnswer, StudentTrackingThresholds
 
 
 @admin.register(CustomUser)
@@ -30,3 +31,25 @@ class QuestionAdmin(admin.ModelAdmin):
     list_filter = ['exam', 'question_type']
     search_fields = ['question_text']
     ordering = ['-question_id']
+
+@admin.register(StudentExamAttempt)
+class StudentExamAttemptAdmin(admin.ModelAdmin):
+    list_display = ['student', 'exam', 'attempt_number', 'score', 'completed_at']
+    list_filter = ['exam', 'completed_at']
+    search_fields = ['student__username', 'exam__title']
+    ordering = ['-completed_at']
+
+@admin.register(StudentAnswer)
+class StudentAnswerAdmin(admin.ModelAdmin):
+    list_display = ['student_exam_attempt', 'question', 'answer_text', 'answer_image']
+    list_filter = ['question']
+    search_fields = ['student_exam_attempt__student__username', 'question__question_text']
+    ordering = ['-student_exam_attempt']
+
+@admin.register(StudentTrackingThresholds)
+class StudentTrackingThresholdsAdmin(admin.ModelAdmin):
+    list_display = ['student', 'calibration_up', 'calibration_down', 'calibration_center', 'calibration_left', 'calibration_right', 'calibration_v_center', 'iris_boxheight_center', 'iris_boxheight_up', 'iris_boxheight_down', 'calibrated_at']
+    search_fields = ['student__username']
+    ordering = ['-calibrated_at']
+
+

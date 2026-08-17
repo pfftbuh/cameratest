@@ -15,4 +15,6 @@ def home(request):
     """
     return render(request, 'camera/home.html', {
         'session_id': uuid.uuid4().hex[:12],
+        'user_role': request.user.role,
+        'exam_id': request.session.get('current_exam_id', None),
     })

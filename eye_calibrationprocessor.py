@@ -97,14 +97,14 @@ class EyeCalibrationProcessor:
 
             self.calibrated = True
             print("Calibration complete!")
-
-            # Save JSON immediately
-            if self.session_folder:
-                try:
-                    os.makedirs(self.session_folder, exist_ok=True)
-                    calibration_path = os.path.join(self.session_folder, "eye_calibration.json")
-                    with open(calibration_path, "w") as f:
-                        json.dump(self.calibrated_thresholds, f, indent=4)
-                    print(f"Calibration JSON saved at {calibration_path}")
-                except Exception as e:
-                    print(f"Failed to save calibration JSON: {e}")
+            
+            # Commented out: JSON file saving (thresholds now saved to database via WebSocket)
+            # if self.session_folder:
+            #     try:
+            #         os.makedirs(self.session_folder, exist_ok=True)
+            #         calibration_path = os.path.join(self.session_folder, "eye_calibration.json")
+            #         with open(calibration_path, "w") as f:
+            #             json.dump(self.calibrated_thresholds, f, indent=4)
+            #         print(f"Calibration JSON saved at {calibration_path}")
+            #     except Exception as e:
+            #         print(f"Failed to save calibration JSON: {e}")
