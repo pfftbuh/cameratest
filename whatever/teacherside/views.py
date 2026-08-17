@@ -1,15 +1,60 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from .create_exam_forms import ExamForm, QuestionForm
 from django.contrib import messages
 from .models import Exam, Question
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from homepage.models import CustomUser
+from django.db.models import Q
 import os
 import time
 
 # Create your views here.
 def teacher_home(request):
     return render(request, 'teacherside/teacher_landing_page.html')
+
+def manage_students(request):
+    """View to list and search students with their class designations."""
+    search_query = request.GET.get('search', '')
+    
+    # Get all students
+    students = CustomUser.objects.filter(role='student')
+    
+    # Apply search filter if query exists
+    if search_query:
+        students = students.filter(
+            Q(username__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(class_designation__icontains=search_query)
+        )
+    
+    # Order by username
+    students = students.order_by('username')
+    
+    context = {
+        'students': students,
+        'search_query': search_query,
+        'total_count': CustomUser.objects.filter(role='student').count(),
+        'filtered_count': students.count()
+    }
+    
+    return render(request, 'teacherside/manage_students.html', context)
+
+def update_student_class(request, user_id):
+    """View to update a student's class designation."""
+    if request.method == 'POST':
+        student = get_object_or_404(CustomUser, id=user_id, role='student')
+        class_designation = request.POST.get('class_designation', '').strip()
+        
+        student.class_designation = class_designation
+        student.save()
+        
+        messages.success(request, f"Class designation updated for {student.username}")
+        return redirect('manage_students')
+    
+    return redirect('manage_students')
 
 def create_exam(request):
     if request.method == 'POST':

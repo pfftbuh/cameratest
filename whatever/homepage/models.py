@@ -18,6 +18,13 @@ class CustomUser(AbstractUser):
         help_text='User role for access control'
     )
     
+    class_designation = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Class or grade designation (e.g., Grade 10-A, CS101)'
+    )
+    
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
     

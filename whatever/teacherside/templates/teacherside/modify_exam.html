@@ -157,6 +157,30 @@
         color: var(--fg);
         font-size: 14px;
     }
+    .field select {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 36px;
+    }
+    .field select:focus {
+        outline: none;
+        border-color: var(--accent, #007bff);
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+    .field select:hover {
+        border-color: var(--accent, #007bff);
+    }
+    .field select option {
+        padding: 8px;
+        background: var(--bg);
+        color: var(--fg);
+    }
+    .field select option:first-child {
+        color: var(--muted);
+    }
     .field textarea {
         resize: vertical;
         min-height: 80px;
@@ -207,6 +231,11 @@
         background: rgba(244, 67, 54, 0.2);
         color: #f44336;
     }
+    /* White calendar icon for deadline input */
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        cursor: pointer;
+    }
 </style>
 {% endblock %}
 
@@ -244,6 +273,7 @@
                 <div class="field">
                     <label for="id_class_designation">Class Designation *</label>
                     {{ form.class_designation }}
+                    <small style="color: var(--muted); font-size: 12px;">{{ form.class_designation.help_text }}</small>
                 </div>
             </div>
             
