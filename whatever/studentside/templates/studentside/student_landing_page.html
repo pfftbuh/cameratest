@@ -48,11 +48,23 @@
                     {% endif %}
                 </p>
                 <p style="margin: 4px 0; font-size: 13px; color: var(--muted);">
-                    Time Limit: {{ exam.timelimit }} | Attempts: {{ exam.attempt_limit }}
+                    Time Limit: {{ exam.timelimit }} | 
+                    {% if exam.attempt_limit %}
+                        Attempts: {{ exam.attempts_used }}/{{ exam.attempt_limit }}
+                        {% if exam.remaining_attempts > 0 %}
+                            <span style="color: var(--ok);"> ({{ exam.remaining_attempts }} left)</span>
+                        {% elif exam.attempts_exhausted %}
+                            <span style="color: var(--bad);"> (No attempts left)</span>
+                        {% endif %}
+                    {% else %}
+                        Attempts: Unlimited
+                    {% endif %}
                 </p>
             </div>
             <div class="exam-actions">
-                {% if exam.is_accessible %}
+                {% if exam.attempts_exhausted %}
+                    <button class="btn" disabled style="opacity: 0.5; cursor: not-allowed;">No Attempts Left</button>
+                {% elif exam.is_accessible %}
                     <a href="{% url 'exam_details' %}?exam_id={{ exam.exam_id }}" class="btn">Take Exam</a>
                 {% else %}
                     <button class="btn" disabled style="opacity: 0.5; cursor: not-allowed;">

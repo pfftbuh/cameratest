@@ -410,9 +410,9 @@ static-files configuration, nothing extra to go wrong on defence day.
       } else if (msg.type === "calibration") {
         applyCalibration(msg);
         if (msg.message) log(msg.message, !msg.ok);
-      } else if (msg.type === "calibration_json") {
-        // Save thresholds to database when calibration completes
-        saveThresholdsToDatabase(msg.thresholds);
+      } else if (msg.type === "calibration_complete") {
+        // Backend has saved calibration to database
+        log("✓ Calibration saved to your profile.");
       } else if (msg.type === "error") {
         log("Server error: " + msg.message, true);
       }
@@ -572,43 +572,6 @@ static-files configuration, nothing extra to go wrong on defence day.
   });
 
   // ---------------------------------------------------------------- lifecycle
-
-  // CSRF token helper
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  }
-
-  // Save thresholds to database
-  function saveThresholdsToDatabase(thresholds) {
-    fetch('/studentside/save-tracking-thresholds/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCookie('csrftoken')
-      },
-      body: JSON.stringify({ thresholds: thresholds })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        log("✓ Calibration saved to your profile.");
-      } else {
-        log("Failed to save calibration: " + data.error, true);
-      }
-    })
-    .catch(err => log("Error saving calibration: " + err, true));
-  }
 
   window.addEventListener("beforeunload", () => { 
     stopCamera(); // Clean up camera on page unload

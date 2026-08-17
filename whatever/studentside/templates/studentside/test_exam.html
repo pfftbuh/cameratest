@@ -7,7 +7,16 @@
   <h1>{{ exam.title }} by {{ exam.created_by.username }}</h1>
   <p><strong>Description:</strong> {{ exam.description }}</p>
   <p><strong>Time Limit:</strong> {{ exam.timelimit }} minutes</p>
-  <p><strong>Attempts Allowed:</strong> {{ exam.attempt_limit }}</p>
+  <p><strong>Attempts:</strong> 
+    {% if exam.attempt_limit %}
+      {{ attempts_used }}/{{ exam.attempt_limit }} used
+      {% if remaining_attempts > 0 %}
+        <span style="color: var(--ok); font-weight: 600;"> ({{ remaining_attempts }} remaining)</span>
+      {% endif %}
+    {% else %}
+      Unlimited
+    {% endif %}
+  </p>
   
   <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--line);">
 

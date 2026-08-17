@@ -40,6 +40,7 @@ class ProctorConsumer(AsyncWebsocketConsumer):
         self.session_id = self.scope['url_route']['kwargs']['session_id']
         self.session = None
         self.busy = False
+        self._calibration_saved = False  # Flag to prevent duplicate saves
 
         # No login system exists yet, so anonymous connections are allowed by
         # default. Flip GAZE_REQUIRE_AUTH once students actually sign in.
@@ -95,6 +96,30 @@ class ProctorConsumer(AsyncWebsocketConsumer):
         self.busy = True
         try:
             result = await sync_to_async(self.session.process_frame, thread_sensitive=False)(bytes_data)
+            
+            # 🔑 Check if calibration just completed in this frame
+            cal_status = result.get('calibration', {})
+            if cal_status.get('calibrated') and not self._calibration_saved:
+                user = self.scope.get('user')
+                logger.info(f'Calibration detected in frame. User: {user}, Authenticated: {user.is_authenticated if user else False}')
+                
+                if user and user.is_authenticated:
+                    try:
+                        await self._save_calibration_to_db(user)
+                        self._calibration_saved = True  # Prevent duplicate saves
+                        logger.info(f'✓ Calibration saved to database for user {user.id} in session {self.session_id}')
+                        
+                        # Notify browser of successful save
+                        await self.send_json({
+                            "type": "calibration_complete",
+                            "session_id": self.session.session_id,
+                            "message": "✓ Calibration saved to database"
+                        })
+                    except Exception as e:
+                        logger.exception(f'Failed to save calibration to database for session {self.session_id}')
+                else:
+                    logger.warning(f'User not authenticated - calibration not saved for session {self.session_id}')
+            
             await self.send_json(result)
         except Exception:
             logger.exception('frame processing failed for session %s', self.session_id)
@@ -115,14 +140,6 @@ class ProctorConsumer(AsyncWebsocketConsumer):
             status = await sync_to_async(self.session.begin_calibration_stage, thread_sensitive=False)()
             await self.send_json({'type': 'calibration', **status})
 
-            # 🔑 If calibration just completed, send thresholds immediately
-            if status.get("calibrated"):
-                await self.send_json({
-                    "type": "calibration_json",
-                    "session_id": self.session.session_id,
-                    "thresholds": self.session.eye_calibrator.calibrated_thresholds
-                })
-
         elif command == 'keystrokes':
             self.session.note_keystrokes(payload.get('keys') or [])
 
@@ -133,6 +150,37 @@ class ProctorConsumer(AsyncWebsocketConsumer):
             await self.send_json({'type': 'error', 'message': f'unknown command: {command!r}'})
         
 
+
+    async def _save_calibration_to_db(self, user):
+        """Save calibration thresholds directly to database.
+        
+        This eliminates the browser roundtrip and saves thresholds immediately
+        when calibration completes.
+        """
+        from studentside.models import StudentTrackingThresholds
+        
+        thresholds = self.session.eye_calibrator.calibrated_thresholds
+        
+        try:
+            obj, created = await sync_to_async(StudentTrackingThresholds.objects.update_or_create)(
+                student=user,
+                defaults={
+                    'calibration_up': thresholds.get('up', 0.0),
+                    'calibration_down': thresholds.get('down', 0.0),
+                    'calibration_center': thresholds.get('center', 0.0),
+                    'calibration_left': thresholds.get('left', 0.0),
+                    'calibration_right': thresholds.get('right', 0.0),
+                    'calibration_v_center': thresholds.get('v_center', 0.0),
+                    'iris_boxheight_center': thresholds.get('iris_boxheight_center', 0.0),
+                    'iris_boxheight_up': thresholds.get('iris_boxheight_up', 0.0),
+                    'iris_boxheight_down': thresholds.get('iris_boxheight_down', 0.0),
+                }
+            )
+            action = "created" if created else "updated"
+            logger.info(f'Calibration thresholds {action} for user {user.id} in session {self.session_id}')
+        except Exception as e:
+            logger.exception(f'Failed to save calibration for user {user.id} in session {self.session_id}: {e}')
+            raise
 
     async def disconnect(self, code):
         if self.session is None:

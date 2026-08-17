@@ -1,8 +1,9 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
 from teacherside.models import Exam
+from .models import StudentExamAttempt, StudentAnswer
 import json
 
 # Every student page sits behind a login: an exam session has to be attributable
@@ -27,6 +28,19 @@ def student_home(request):
     for exam in exams:
         exam.is_accessible = exam.access_status and exam.deadline > now
         exam.deadline_passed = exam.deadline <= now
+        
+        # Calculate attempts
+        exam.attempts_used = StudentExamAttempt.objects.filter(
+            student=request.user,
+            exam=exam
+        ).count()
+        
+        if exam.attempt_limit:
+            exam.remaining_attempts = exam.attempt_limit - exam.attempts_used
+            exam.attempts_exhausted = exam.attempts_used >= exam.attempt_limit
+        else:
+            exam.remaining_attempts = None  # Unlimited
+            exam.attempts_exhausted = False
     
     return render(request, 'studentside/student_landing_page.html', {
         'exams': exams,
@@ -49,11 +63,29 @@ def exam_details(request):
         messages.error(request, 'Exam not found')
         return redirect('student_home')
     
+    # Check attempt limit
+    previous_attempts = StudentExamAttempt.objects.filter(
+        student=request.user,
+        exam=exam
+    ).count()
+    
+    if exam.attempt_limit and previous_attempts >= exam.attempt_limit:
+        messages.error(request, f'You have already used all {exam.attempt_limit} attempt(s) for this exam.')
+        return redirect('student_home')
+    
+    # Calculate remaining attempts for display
+    if exam.attempt_limit:
+        remaining_attempts = exam.attempt_limit - previous_attempts
+    else:
+        remaining_attempts = None  # Unlimited
+    
     # Store exam_id in session for downstream pages
     request.session['current_exam_id'] = exam_id
     
     return render(request, 'studentside/test_exam.html', {
         'exam': exam,
+        'attempts_used': previous_attempts,
+        'remaining_attempts': remaining_attempts,
     })
 
 
@@ -68,6 +100,17 @@ def exam_session(request):
     
     try:
         exam = Exam.objects.get(exam_id=exam_id)
+        
+        # Check attempt limit (backup check)
+        previous_attempts = StudentExamAttempt.objects.filter(
+            student=request.user,
+            exam=exam
+        ).count()
+        
+        if exam.attempt_limit and previous_attempts >= exam.attempt_limit:
+            messages.error(request, f'You have already used all {exam.attempt_limit} attempt(s) for this exam.')
+            return redirect('student_home')
+        
         questions = exam.questions.all().order_by('question_id')
         
         # Ensure choices is properly formatted
@@ -154,10 +197,6 @@ def save_tracking_thresholds(request):
         return JsonResponse({'success': False, 'error': 'Invalid JSON'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
-
-
-from django.shortcuts import get_object_or_404
-from .models import StudentExamAttempt, StudentAnswer
 
 
 @login_required
