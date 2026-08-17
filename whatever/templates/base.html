@@ -36,13 +36,22 @@ the nav reflects whether anyone is signed in.
     padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel);
   }
   nav .brand { font-weight: 700; letter-spacing: .03em; color: var(--text); text-decoration: none; }
+  nav a { 
+    color: var(--accent); 
+    text-decoration: none; 
+    font-size: 14px;
+    transition: color 0.2s;
+  }
+  nav a:hover { color: var(--text); }
   nav .spacer { flex: 1; }
   nav .who { color: var(--muted); font-size: 13px; }
   nav form { margin: 0; }
   nav button.link {
     background: none; border: none; color: var(--accent);
     font: inherit; font-size: 14px; cursor: pointer; padding: 0;
+    transition: color 0.2s;
   }
+  nav button.link:hover { color: var(--text); }
 
   main { flex: 1; width: 100%; max-width: 900px; margin: 0 auto; padding: 32px 22px 48px; }
   .narrow { max-width: 420px; }
@@ -135,9 +144,24 @@ the nav reflects whether anyone is signed in.
 
 <nav>
   <a class="brand" href="{% url 'landing_page' %}">MAKITEST</a>
+  
+  {% if user.is_authenticated %}
+    {# Role-specific navigation links #}
+    {% if user.role == 'teacher' %}
+      <a href="{% url 'teacher_home' %}">Dashboard</a>
+      <a href="{% url 'create_exam' %}">Create Exam</a>
+      <a href="{% url 'exams_list' %}">My Exams</a>
+    {% elif user.role == 'student' %}
+      <a href="{% url 'student_home' %}">Dashboard</a>
+      <a href="{% url 'student_home' %}">Available Exams</a>
+    {% elif user.role == 'admin' %}
+      <a href="/admin/">Admin Panel</a>
+    {% endif %}
+  {% endif %}
+  
   <span class="spacer"></span>
   {% if user.is_authenticated %}
-    <span class="who">signed in as <strong>{{ user.username }}</strong></span>
+    <span class="who">{{ user.get_role_display }} | <strong>{{ user.username }}</strong></span>
     {# Django requires POST for logout, so this is a form rather than a link. #}
     <form method="post" action="{% url 'logout' %}">
       {% csrf_token %}

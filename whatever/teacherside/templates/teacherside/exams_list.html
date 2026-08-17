@@ -1,4 +1,4 @@
-{% extends "teacherside/base.html" %}
+{% extends "base.html" %}
 {% block content %}
 <h1>Exams List</h1>
 <div class="card">
@@ -15,14 +15,37 @@
     <p class="sub" style="margin-bottom:14px">
         View and manage your existing exams.
     </p>
-    <ul>
+    <ul class="exam-list">
         {% for exam in exams %}
-        <li>
-            <a href="{% url 'exam_detail' exam.exam_id %}">{{ exam.title }}</a> - {{ exam.description }} (Deadline: {{ exam.deadline }})
+        <li class="exam-item">
+            <div class="exam-info">
+                <strong>{{ exam.title }}</strong>
+                <p style="margin: 4px 0; color: var(--muted); font-size: 14px;">{{ exam.description|truncatewords:20 }}</p>
+                <p style="margin: 4px 0; font-size: 13px;">Deadline: {{ exam.deadline|date:"M d, Y H:i" }}</p>
+            </div>
+            <div class="exam-actions">
+                <a href="{% url 'modify_exam' exam.exam_id %}" class="btn">Modify Exam</a>
+            </div>
         </li>
         {% empty %}
-        <li>No exams available.</li>
+        <li style="color: var(--muted);">No exams available.</li>
         {% endfor %}
     </ul>
+    <style>
+    .exam-list { list-style: none; padding: 0; }
+    .exam-item {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 16px;
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+    }
+    .exam-info { flex: 1; }
+    .exam-actions { display: flex; gap: 8px; }
+    </style>
 </div>
 {% endblock %}

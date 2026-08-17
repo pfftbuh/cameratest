@@ -1,5 +1,5 @@
 from django import forms
-from .models import Exam
+from .models import Exam, Question
 from datetime import timedelta
 
 class ExamForm(forms.ModelForm):
@@ -19,4 +19,14 @@ class ExamForm(forms.ModelForm):
     def clean_timelimit(self):
         minutes = self.cleaned_data['timelimit']
         return timedelta(minutes=minutes)
+
+class QuestionForm(forms.ModelForm):
+    class Meta:
+        model = Question
+        fields = ['question_text', 'question_image', 'question_type', 
+                  'correct_answer_text', 'correct_answer_image']
+        widgets = {
+            'question_text': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'question_type': forms.Select(attrs={'id': 'id_question_type', 'class': 'form-control'}),
+        }
 

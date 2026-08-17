@@ -3,12 +3,13 @@
 <h1>Welcome, Teacher!</h1>
 
 <div class="card">
-  <h2 style="font-size:17px;margin:0 0 6px">Create Exam</h2>
+  <h2 style="font-size:17px;margin:0 0 6px">Manage Exams</h2>
   <p class="sub" style="margin-bottom:14px">
-    Create a new exam for your students.
+    Create a new exam or view your existing exams.
   </p>
   <p style="margin-bottom:0">
     <a class="btn" href="{% url 'create_exam' %}">Create Exam</a>
+    <a class="btn" href="{% url 'exams_list' %}">View Exams</a>
   </p>
 </div>
 {% endblock %}

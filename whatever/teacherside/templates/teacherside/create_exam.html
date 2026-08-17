@@ -57,13 +57,7 @@
         {% for error in form.access_code.errors %}
             <p class="field-error">{{ error }}</p>
         {% endfor %}
-    </div>
-    <div class="field">
-        <label for="access_status">Access Status</label>
-        <input type="checkbox" name="access_status" id="access_status"> Open on creation
-        {% for error in form.access_status.errors %}
-            <p class="field-error">{{ error }}</p>
-        {% endfor %}
+        <small>Students will need this code to access the exam. Exam access will be closed until you manually open it. <strong> Can be left empty. </strong> </small>
     </div>
     <button type="submit" class="primary">Create Exam</button>
   </form>
