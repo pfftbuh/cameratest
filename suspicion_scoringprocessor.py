@@ -43,7 +43,7 @@ class SuspicionScoringProcessor:
         self.shift_timestamps = collections.deque()
         
         # Optimized Video Capture
-        self.frame_buffer = collections.deque(maxlen=90)  # 3 seconds at 30 fps (pre-roll)
+        self.frame_buffer = collections.deque(maxlen=30)  # 3 seconds at 10 fps (pre-roll)
         self.is_recording = False
         self.post_roll = []
         self.pre_roll_copy = []
@@ -214,7 +214,7 @@ class SuspicionScoringProcessor:
             # Post-roll Capture
             self.post_roll.append(frame.copy())
             
-            if len(self.post_roll) >= 90:
+            if len(self.post_roll) >= 30:  # 3 seconds at 10 fps
                 # Trigger Threading for Video Save
                 t = threading.Thread(
                     target=self._save_video_async,
@@ -264,7 +264,7 @@ class SuspicionScoringProcessor:
         filename = os.path.join(self.output_dir, filename)
 
         fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        out = cv2.VideoWriter(filename, fourcc, 30.0, (width, height))
+        out = cv2.VideoWriter(filename, fourcc, 10.0, (width, height))
         
         for f in all_frames:
             # Ensure frame matches the exact even dimensions
