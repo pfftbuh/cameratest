@@ -95,32 +95,16 @@
         <img id="annotated" alt="Camera feed" hidden style="width: 100%; height: auto; border-radius: 6px;">
       </div>
 
-      <div id="proctor-status" style="font-size: 12px; line-height: 1.8;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+      <div id="proctor-status" style="font-size: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
           <span id="conn" class="pill" style="font-size: 11px;">connecting</span>
+          <span style="color: var(--muted); font-size: 11px;">
+            <span id="m-fps" style="font-weight: 600;">—</span> fps
+          </span>
         </div>
-        
-        <div style="background: var(--panel); padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: var(--muted);">Face:</span>
-            <span id="m-face" style="font-weight: 600;">—</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: var(--muted);">Gaze:</span>
-            <span id="m-gaze" style="font-weight: 600;">—</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="color: var(--muted);">FPS:</span>
-            <span id="m-fps" style="font-weight: 600;">—</span>
-          </div>
-        </div>
-        
-        <div id="alert" class="alert" hidden style="padding: 8px; font-size: 11px; background: rgba(239,75,75,.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; font-weight: 600;"></div>
       </div>
       
-      <p style="font-size: 10px; color: var(--muted); margin: 10px 0 0 0; line-height: 1.4;">
-        ⚠️ Your behavior is being monitored. Stay focused on the exam.
-      </p>
+      <div id="alert" class="alert" hidden style="padding: 8px; font-size: 11px; background: rgba(239,75,75,.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; font-weight: 600; margin-top: 10px;"></div>
     </div>
   </div>
 
@@ -239,12 +223,6 @@
             video.classList.add('hidden');
           }
           
-          if (data.face_detected !== undefined) {
-            $("m-face").textContent = data.face_detected ? "✓ Detected" : "✗ Not detected";
-          }
-          if (data.gaze_direction) {
-            $("m-gaze").textContent = Array.isArray(data.gaze_direction) ? data.gaze_direction.join(" ") : data.gaze_direction;
-          }
           if (data.fps) {
             $("m-fps").textContent = data.fps.toFixed(1);
           }
