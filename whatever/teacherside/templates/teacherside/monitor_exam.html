@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% comment %}
+Live proctoring wall.
+
+One tile per student, driven entirely by the monitor WebSocket — no polling, no
+page reloads. Tiles sort themselves so anyone currently flagged floats to the
+top, which is the whole point: a teacher watching twenty tiles should never have
+to hunt for the one that needs attention.
+{% endcomment %}
+
+{% block title %}Monitoring {{ exam.title }} — MAKITEST{% endblock %}
+
+{% block head %}
+<style>
+  .monitor-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .counts { display: flex; gap: 18px; margin-left: auto; font-size: 13px; color: var(--muted); }
+  .counts b { color: var(--text); font-size: 16px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+  .tile.flagged { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad), 0 0 18px rgba(239,75,75,.25); }
+  .tile.noface  { border-color: #f5a623; }
+  .tile.stale   { opacity: .45; }
+
+  .thumb { position: relative; aspect-ratio: 4 / 3; background: #000; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .placeholder { position: absolute; inset: 0; display: flex; align-items: center;
+                        justify-content: center; color: var(--muted); font-size: 12px; }
+  .badge { position: absolute; top: 8px; right: 8px; padding: 3px 8px; border-radius: 4px;
+           font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .badge.rec { background: var(--bad); color: #fff; }
+  .badge.cal { background: #f5a623; color: #241a00; }
+
+  .meta { padding: 10px 12px; }
+  .meta .name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  .meta .line { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .meta .violation { color: var(--bad); font-weight: 600; font-size: 12px; margin-top: 5px;
+                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .empty { color: var(--muted); text-align: center; padding: 50px 0; }
+
+  #feed { list-style: none; padding: 0; margin: 22px 0 0; max-height: 220px; overflow-y: auto;
+          font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  #feed li { padding: 4px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+  #feed li.bad { color: var(--bad); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="monitor-head">
+  <div>
+    <h1 style="margin:0">{{ exam.title }}</h1>
+    <p class="sub" style="margin:0">Live monitoring · <span id="conn">connecting…</span></p>
+  </div>
+  <div class="counts">
+    <span><b id="c-online">0</b><br>online</span>
+    <span><b id="c-flagged">0</b><br>flagged</span>
+    <span><b id="c-noface">0</b><br>no face</span>
+    <span><b>{{ attempt_count }}</b><br>attempts</span>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+<p class="empty" id="empty">No students are connected yet. Tiles appear as they begin their exam.</p>
+
+<h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:26px 0 0">Activity</h2>
+<ul id="feed"></ul>
+
+<p class="foot"><a href="{% url 'exams_list' %}">← Back to exams</a></p>
+
+{# Anything outside a block is discarded when extending, so the script lives here. #}
+<script>
+(function () {
+  "use strict";
+
+  const EXAM_ID = "{{ exam.exam_id }}";
+  // A tile stops updating if the student's browser freezes or the network drops
+  // without closing the socket, so anything older than this is greyed out.
+  const STALE_AFTER_MS = 8000;
+
+  const students = new Map();   // session_id -> latest payload
+  const grid = document.getElementById("grid");
+  const $ = (id) => document.getElementById(id);
+
+  function log(text, bad) {
+    const li = document.createElement("li");
+    li.textContent = new Date().toLocaleTimeString() + "  " + text;
+    if (bad) li.className = "bad";
+    $("feed").insertBefore(li, $("feed").firstChild);
+    while ($("feed").children.length > 60) $("feed").removeChild($("feed").lastChild);
+  }
+
+  function tileFor(id) {
+    let el = document.getElementById("tile-" + id);
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "tile-" + id;
+    el.className = "tile";
+    el.innerHTML =
+      '<div class="thumb"><span class="placeholder">no image</span>' +
+      '<img alt="" hidden><span class="badge" hidden></span></div>' +
+      '<div class="meta"><div class="name"></div>' +
+      '<div class="line"><span class="gaze"></span><span class="fps"></span></div>' +
+      '<div class="violation"></div></div>';
+    grid.appendChild(el);
+    return el;
+  }
+
+  function render() {
+    const now = Date.now();
+    let online = 0, flagged = 0, noface = 0;
+
+    // Flagged first, then students whose face is missing, then everyone else:
+    // the tiles needing attention stay at the top of the wall.
+    const sorted = [...students.values()].sort((a, b) => {
+      const rank = (s) => (s.is_recording ? 0 : (!s.face_detected ? 1 : 2));
+      return rank(a) - rank(b) || String(a.student).localeCompare(String(b.student));
+    });
+
+    sorted.forEach((s, index) => {
+      const el = tileFor(s.session_id);
+      const stale = now - s.received_at > STALE_AFTER_MS;
+
+      el.style.order = index;
+      el.className = "tile"
+        + (s.is_recording ? " flagged" : "")
+        + (!s.face_detected && !s.is_recording ? " noface" : "")
+        + (stale ? " stale" : "");
+
+      const img = el.querySelector("img");
+      const placeholder = el.querySelector(".placeholder");
+      if (s.thumbnail) {
+        img.src = s.thumbnail;
+        img.hidden = false;
+        placeholder.hidden = true;
+      }
+
+      const badge = el.querySelector(".badge");
+      if (s.is_recording) {
+        badge.hidden = false; badge.className = "badge rec"; badge.textContent = "REC";
+      } else if (!s.calibrated) {
+        badge.hidden = false; badge.className = "badge cal";
+        badge.textContent = "calibrating " + (s.stage >= 0 ? (s.stage + 1) + "/5" : "");
+      } else {
+        badge.hidden = true;
+      }
+
+      el.querySelector(".name").textContent = s.student;
+      el.querySelector(".gaze").textContent =
+        !s.face_detected ? "no face" : (s.gaze_direction ? s.gaze_direction.join(" ") : "—");
+      el.querySelector(".fps").textContent = s.fps ? s.fps.toFixed(0) + " fps" : "";
+      el.querySelector(".violation").textContent = s.is_recording ? s.violation : "";
+
+      if (!stale) online++;
+      if (s.is_recording) flagged++;
+      if (!s.face_detected) noface++;
+    });
+
+    $("c-online").textContent = online;
+    $("c-flagged").textContent = flagged;
+    $("c-noface").textContent = noface;
+    $("empty").style.display = students.size ? "none" : "";
+  }
+
+  function connect() {
+    const scheme = location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(scheme + "://" + location.host + "/ws/monitor/" + EXAM_ID + "/");
+
+    ws.onopen = () => { $("conn").textContent = "connected"; };
+
+    ws.onclose = (e) => {
+      $("conn").textContent = "disconnected (" + e.code + ")";
+      if (e.code === 4403) log("Access denied — teacher account required.", true);
+      else if (e.code === 4401) log("Not signed in.", true);
+    };
+
+    ws.onmessage = (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch (_) { return; }
+
+      if (msg.type === "student_update") {
+        const previous = students.get(msg.session_id);
+        msg.received_at = Date.now();
+        // Thumbnails may be omitted; keep showing the last one we had.
+        if (!msg.thumbnail && previous) msg.thumbnail = previous.thumbnail;
+        students.set(msg.session_id, msg);
+
+        if (!previous) log(msg.student + " joined.");
+        if (msg.is_recording && (!previous || !previous.is_recording)) {
+          log(msg.student + " — " + msg.violation, true);
+        }
+        render();
+
+      } else if (msg.type === "student_offline") {
+        if (students.delete(msg.session_id)) log(msg.student + " left the exam.", true);
+        const el = document.getElementById("tile-" + msg.session_id);
+        if (el) el.remove();
+        render();
+      }
+    };
+
+    return ws;
+  }
+
+  const socket = connect();
+  setInterval(() => {
+    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping" }));
+    render();   // re-evaluate staleness even when no updates arrive
+  }, 3000);
+})();
+</script>
+{% endblock %}

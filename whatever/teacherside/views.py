@@ -5,6 +5,7 @@ from .models import Exam, Question
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from homepage.models import CustomUser
+from studentside.models import StudentExamAttempt
 from django.db.models import Q
 import os
 import time
@@ -196,4 +197,29 @@ def delete_question(request, question_id):
         'form': form,
         'exam': exam,
         'questions': questions
+    })
+
+def monitor_exam(request, exam_id):
+    """Live proctoring wall for one exam.
+
+    Renders the shell only — every student tile arrives over the monitor
+    WebSocket, so the page stays current without polling.
+    """
+    exam = get_object_or_404(Exam, exam_id=exam_id)
+
+    # Teacher-only. The other views in this module have no access check at all,
+    # which is worth fixing separately; this one exposes live webcam thumbnails
+    # of the whole cohort, so it cannot wait.
+    user = request.user
+    if not user.is_authenticated:
+        return redirect('login')
+    if not (getattr(user, 'is_teacher', lambda: False)() or user.is_staff):
+        messages.error(request, 'Access denied: Teachers only')
+        return redirect('landing_page')
+
+    attempts = StudentExamAttempt.objects.filter(exam=exam).select_related('student')
+
+    return render(request, 'teacherside/monitor_exam.html', {
+        'exam': exam,
+        'attempt_count': attempts.count(),
     })

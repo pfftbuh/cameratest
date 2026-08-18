@@ -25,6 +25,7 @@
             </div>
             <div class="exam-actions">
                 <a href="{% url 'modify_exam' exam.exam_id %}" class="btn">Modify Exam</a>
+                <a href="{% url 'monitor_exam' exam.exam_id %}" class="btn">Monitor Live</a>
             </div>
         </li>
         {% empty %}
