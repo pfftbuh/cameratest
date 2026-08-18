@@ -51,6 +51,8 @@ def student_home(request):
 @login_required
 def exam_details(request):
     """Show exam instructions before starting calibration/proctoring."""
+    import uuid
+    
     exam_id = request.GET.get('exam_id')
     
     if not exam_id:
@@ -82,21 +84,31 @@ def exam_details(request):
     # Store exam_id in session for downstream pages
     request.session['current_exam_id'] = exam_id
     
+    # Generate unique proctoring session ID
+    proctoring_session_id = uuid.uuid4().hex[:12]
+    request.session['proctoring_session_id'] = proctoring_session_id
+    
     return render(request, 'studentside/test_exam.html', {
         'exam': exam,
         'attempts_used': previous_attempts,
         'remaining_attempts': remaining_attempts,
+        'session_id': proctoring_session_id,
     })
 
 
 @login_required
 def exam_session(request):
-    """Display the exam questions for the student to answer."""
+    """Display the exam questions for the student to answer WITH continuous proctoring."""
     exam_id = request.session.get('current_exam_id')
+    proctoring_session_id = request.session.get('proctoring_session_id')
     
     if not exam_id:
         messages.error(request, 'No exam selected. Please start from the exam details page.')
         return redirect('student_home')
+    
+    if not proctoring_session_id:
+        messages.error(request, 'Proctoring not initialized. Please complete calibration first.')
+        return redirect('exam_details') + f'?exam_id={exam_id}'
     
     try:
         exam = Exam.objects.get(exam_id=exam_id)
@@ -116,13 +128,23 @@ def exam_session(request):
         # Ensure choices is properly formatted
         for question in questions:
             if question.choices and isinstance(question.choices, str):
-                import json
                 question.choices = json.loads(question.choices)
         
         # Track exam start time (only set once per exam attempt)
         session_key = f'exam_{exam_id}_start_time'
         if session_key not in request.session:
             request.session[session_key] = timezone.now().isoformat()
+            
+            # CREATE EXAM ATTEMPT NOW (not at submission)
+            attempt_number = previous_attempts + 1
+            exam_attempt = StudentExamAttempt.objects.create(
+                student=request.user,
+                exam=exam,
+                attempt_number=attempt_number,
+                proctoring_session_id=proctoring_session_id,
+                proctoring_started_at=timezone.now()
+            )
+            request.session['current_attempt_id'] = exam_attempt.id
         
         # Calculate remaining time
         start_time = timezone.datetime.fromisoformat(request.session[session_key])
@@ -143,7 +165,8 @@ def exam_session(request):
         return render(request, 'studentside/exam_session.html', {
             'exam': exam,
             'questions': questions,
-            'remaining_seconds': remaining_seconds,  # Pass calculated time to template
+            'remaining_seconds': remaining_seconds,
+            'proctoring_session_id': proctoring_session_id,
         })
     except Exam.DoesNotExist:
         messages.error(request, 'Exam not found')
@@ -201,52 +224,20 @@ def save_tracking_thresholds(request):
 
 @login_required
 def submit_exam(request):
-    """Handle exam submission and save answers"""
+    """Handle exam submission and save answers with proctoring finalization"""
     if request.method != 'POST':
         return redirect('student_home')
     
     exam_id = request.session.get('current_exam_id')
-    if not exam_id:
+    attempt_id = request.session.get('current_attempt_id')
+    
+    if not exam_id or not attempt_id:
         messages.error(request, 'No active exam found.')
         return redirect('student_home')
     
     try:
         exam = Exam.objects.get(exam_id=exam_id)
-        
-        # Get start time
-        session_key = f'exam_{exam_id}_start_time'
-        start_time_str = request.session.get(session_key)
-        
-        if not start_time_str:
-            messages.error(request, 'Exam start time not found.')
-            return redirect('student_home')
-        
-        start_time = timezone.datetime.fromisoformat(start_time_str)
-        if timezone.is_naive(start_time):
-            start_time = timezone.make_aware(start_time)
-        
-        submit_time = timezone.now()
-        
-        # Determine attempt number
-        previous_attempts = StudentExamAttempt.objects.filter(
-            student=request.user,
-            exam=exam
-        ).count()
-        
-        attempt_number = previous_attempts + 1
-        
-        # Check attempt limit
-        if exam.attempt_limit and attempt_number > exam.attempt_limit:
-            messages.error(request, 'You have exceeded the maximum number of attempts.')
-            return redirect('student_home')
-        
-        # Create exam attempt
-        exam_attempt = StudentExamAttempt.objects.create(
-            student=request.user,
-            exam=exam,
-            attempt_number=attempt_number,
-            completed_at=submit_time
-        )
+        exam_attempt = StudentExamAttempt.objects.get(id=attempt_id, student=request.user)
         
         # Save answers
         questions = exam.questions.all()
@@ -264,16 +255,27 @@ def submit_exam(request):
         # Auto-grade
         grade_exam_attempt(exam_attempt)
         
+        # Finalize proctoring
+        exam_attempt.completed_at = timezone.now()
+        exam_attempt.proctoring_ended_at = timezone.now()
+        exam_attempt.save()
+        
         # Clear session
-        del request.session[session_key]
+        session_key = f'exam_{exam_id}_start_time'
+        if session_key in request.session:
+            del request.session[session_key]
         if 'current_exam_id' in request.session:
             del request.session['current_exam_id']
+        if 'current_attempt_id' in request.session:
+            del request.session['current_attempt_id']
+        if 'proctoring_session_id' in request.session:
+            del request.session['proctoring_session_id']
         
         messages.success(request, f'Exam submitted! Score: {exam_attempt.score}%')
         return redirect('exam_results', attempt_id=exam_attempt.id)
         
-    except Exam.DoesNotExist:
-        messages.error(request, 'Exam not found.')
+    except (Exam.DoesNotExist, StudentExamAttempt.DoesNotExist):
+        messages.error(request, 'Exam or attempt not found.')
         return redirect('student_home')
 
 

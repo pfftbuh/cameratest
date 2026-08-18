@@ -3,19 +3,22 @@
 {% block title %}{{ exam.title }} — MAKITEST{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width: 900px; margin: 0 auto;">
-  <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--line);">
-    <div>
-      <h1 style="margin: 0 0 5px 0;">{{ exam.title }}</h1>
-      <p style="margin: 0; color: var(--muted);">{{ questions|length }} Question(s) | Time Limit: {{ exam.timelimit }}</p>
-    </div>
-    <div style="text-align: right;">
-      <div id="timer" style="font-size: 24px; font-weight: 600; color: var(--ok); font-family: monospace;"></div>
-      <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--muted);">Time Remaining</p>
-    </div>
-  </header>
+<div style="display: grid; grid-template-columns: 1fr 320px; gap: 20px; max-width: 1400px; margin: 0 auto;">
+  
+  <!-- LEFT COLUMN: Exam Questions -->
+  <div class="card" style="max-width: 100%;">
+    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--line);">
+      <div>
+        <h1 style="margin: 0 0 5px 0;">{{ exam.title }}</h1>
+        <p style="margin: 0; color: var(--muted);">{{ questions|length }} Question(s) | Time Limit: {{ exam.timelimit }}</p>
+      </div>
+      <div style="text-align: right;">
+        <div id="timer" style="font-size: 24px; font-weight: 600; color: var(--ok); font-family: monospace;"></div>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: var(--muted);">Time Remaining</p>
+      </div>
+    </header>
 
-  <form id="exam-form" method="post" action="{% url 'submit_exam' %}">
+    <form id="exam-form" method="post" action="{% url 'submit_exam' %}">
     {% csrf_token %}
     
     {% for question in questions %}
@@ -78,6 +81,49 @@
       </button>
     </div>
   </form>
+  </div>
+
+  <!-- RIGHT COLUMN: Proctoring Monitor (Sticky) -->
+  <div style="position: sticky; top: 20px; height: fit-content;">
+    <div class="card" style="padding: 15px;">
+      <h3 style="margin: 0 0 10px 0; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;">
+        🎥 Proctoring Active
+      </h3>
+      
+      <div class="feed" style="margin-bottom: 12px; position: relative;">
+        <video id="video" autoplay playsinline muted class="hidden" style="width: 100%; height: auto; border-radius: 6px; background: #000;"></video>
+        <img id="annotated" alt="Camera feed" hidden style="width: 100%; height: auto; border-radius: 6px;">
+      </div>
+
+      <div id="proctor-status" style="font-size: 12px; line-height: 1.8;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+          <span id="conn" class="pill" style="font-size: 11px;">connecting</span>
+        </div>
+        
+        <div style="background: var(--panel); padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--muted);">Face:</span>
+            <span id="m-face" style="font-weight: 600;">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--muted);">Gaze:</span>
+            <span id="m-gaze" style="font-weight: 600;">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--muted);">FPS:</span>
+            <span id="m-fps" style="font-weight: 600;">—</span>
+          </div>
+        </div>
+        
+        <div id="alert" class="alert" hidden style="padding: 8px; font-size: 11px; background: rgba(239,75,75,.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; font-weight: 600;"></div>
+      </div>
+      
+      <p style="font-size: 10px; color: var(--muted); margin: 10px 0 0 0; line-height: 1.4;">
+        ⚠️ Your behavior is being monitored. Stay focused on the exam.
+      </p>
+    </div>
+  </div>
+
 </div>
 
 <style>
@@ -90,12 +136,33 @@
     border-color: var(--weighted) !important;
     background: rgba(76, 201, 240, 0.1) !important;
   }
+  
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #262b36;
+    color: var(--muted);
+  }
+  .pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .pill.ok { color: var(--ok); }
+  .pill.warn { color: var(--warn); }
+  .pill.bad { color: var(--bad); }
 </style>
 
 <script>
   // Timer functionality
   const timerDisplay = document.getElementById('timer');
-  // Use server-calculated remaining time instead of full time limit
   let timeRemaining = {{ remaining_seconds }};
 
   function formatTime(seconds) {
@@ -120,7 +187,6 @@
 
     timerDisplay.textContent = formatTime(timeRemaining);
     
-    // Change color when time is running low (last 5 minutes)
     if (timeRemaining <= 300) {
       timerDisplay.style.color = 'var(--warn)';
     }
@@ -131,15 +197,159 @@
     timeRemaining--;
   }
 
-  // Update timer immediately and then every second
   updateTimer();
   const timerInterval = setInterval(updateTimer, 1000);
 
-  // Prevent accidental page close
-  window.addEventListener('beforeunload', (e) => {
-    e.preventDefault();
-    e.returnValue = '';
-  });
+  // Proctoring WebSocket Integration
+  (function() {
+    "use strict";
+    
+    const SESSION_ID = "{{ proctoring_session_id }}";
+    const CAPTURE_W = 320, CAPTURE_H = 240;
+    const TARGET_FPS = 5;  // Lower FPS during exam
+    const JPEG_QUALITY = 0.6;
+    
+    const $ = (id) => document.getElementById(id);
+    const video = $("video");
+    const annotated = $("annotated");
+    const canvas = document.createElement("canvas");
+    canvas.width = CAPTURE_W;
+    canvas.height = CAPTURE_H;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    
+    let ws = null, streaming = false, currentStream = null;
+    
+    function connect() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${window.location.host}/ws/proctor/${SESSION_ID}/`);
+      
+      ws.onopen = () => {
+        $("conn").textContent = "connected";
+        $("conn").className = "pill ok";
+        startCamera();
+      };
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "frame_result") {
+          if (data.debug_face) {
+            annotated.src = data.debug_face;
+            annotated.hidden = false;
+            video.classList.add('hidden');
+          }
+          
+          if (data.face_detected !== undefined) {
+            $("m-face").textContent = data.face_detected ? "✓ Detected" : "✗ Not detected";
+          }
+          if (data.gaze_direction) {
+            $("m-gaze").textContent = Array.isArray(data.gaze_direction) ? data.gaze_direction.join(" ") : data.gaze_direction;
+          }
+          if (data.fps) {
+            $("m-fps").textContent = data.fps.toFixed(1);
+          }
+          
+          if (data.suspicion && data.suspicion.is_recording) {
+            const alert = $("alert");
+            alert.textContent = "⚠️ " + data.suspicion.current_violation;
+            alert.hidden = false;
+            setTimeout(() => alert.hidden = true, 5000);
+          }
+        }
+      };
+      
+      ws.onerror = () => {
+        $("conn").textContent = "error";
+        $("conn").className = "pill bad";
+      };
+      
+      ws.onclose = () => {
+        $("conn").textContent = "disconnected";
+        $("conn").className = "pill warn";
+      };
+    }
+    
+    async function startCamera() {
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: CAPTURE_W, height: CAPTURE_H },
+          audio: false
+        });
+        video.srcObject = currentStream;
+        video.onloadedmetadata = () => {
+          video.play();
+          streaming = true;
+          capture();
+        };
+      } catch (err) {
+        console.error("Camera access denied:", err);
+        const alert = $("alert");
+        alert.textContent = "⚠️ Camera access required for proctored exams";
+        alert.hidden = false;
+      }
+    }
+    
+    function capture() {
+      if (!streaming || !ws || ws.readyState !== WebSocket.OPEN) {
+        setTimeout(capture, 1000);
+        return;
+      }
+      
+      ctx.drawImage(video, 0, 0, CAPTURE_W, CAPTURE_H);
+      canvas.toBlob((blob) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(blob);
+        }
+      }, "image/jpeg", JPEG_QUALITY);
+      
+      setTimeout(capture, 1000 / TARGET_FPS);
+    }
+    
+    // Monitor suspicious keystrokes
+    document.addEventListener('keydown', (e) => {
+      const suspicious = [];
+      if (e.altKey && e.key === 'Tab') suspicious.push('alt+tab');
+      if (e.ctrlKey && e.key.toLowerCase() === 'c') suspicious.push('ctrl+c');
+      if (e.ctrlKey && e.key.toLowerCase() === 'v') suspicious.push('ctrl+v');
+      if (e.metaKey && e.key === 'Tab') suspicious.push('cmd+tab');
+      if (e.key === 'F11') suspicious.push('f11');
+      if (e.key === 'PrintScreen') suspicious.push('print_screen');
+      
+      if (suspicious.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'keystrokes',
+          keys: suspicious
+        }));
+      }
+    });
+    
+    window.addEventListener('blur', () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'keystrokes',
+          keys: ['window_focus_lost']
+        }));
+      }
+    });
+    
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'keystrokes',
+          keys: ['tab_hidden']
+        }));
+      }
+    });
+    
+    connect();
+    
+    window.addEventListener('beforeunload', () => {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      if (ws) ws.close();
+    });
+  })();
 
   // Form submission
   document.getElementById('exam-form').addEventListener('submit', (e) => {
@@ -147,7 +357,6 @@
       e.preventDefault();
       return false;
     }
-    // Form will submit normally to submit_exam view
   });
 </script>
 {% endblock %}

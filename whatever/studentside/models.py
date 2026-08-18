@@ -8,6 +8,14 @@ class StudentExamAttempt(models.Model):
     attempt_number = models.PositiveIntegerField()
     score = models.FloatField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Proctoring integration fields
+    proctoring_session_id = models.CharField(max_length=100, null=True, blank=True, 
+                                              help_text="WebSocket session ID for proctoring")
+    proctoring_started_at = models.DateTimeField(null=True, blank=True)
+    proctoring_ended_at = models.DateTimeField(null=True, blank=True)
+    suspicion_score = models.FloatField(default=0.0, help_text="Cumulative suspicion score")
+    violation_count = models.IntegerField(default=0, help_text="Number of flagged violations")
 
     class Meta:
         unique_together = ('student', 'exam', 'attempt_number')

@@ -34,6 +34,38 @@ class EyeCalibrationProcessor:
         self.calibration_iris_boxheight_down_values = deque(maxlen=self.sample_count)
 
         self.calibrated_thresholds = {}
+        
+        # Load existing calibration if available (for reconnection/exam phase)
+        self._load_existing_calibration()
+
+    def _load_existing_calibration(self):
+        """Load calibration from JSON file if it exists."""
+        if not self.session_folder:
+            return
+        
+        calibration_path = os.path.join(self.session_folder, "eye_calibration.json")
+        if os.path.exists(calibration_path):
+            try:
+                with open(calibration_path, 'r') as f:
+                    self.calibrated_thresholds = json.load(f)
+                
+                # Restore calibration values
+                self.calibration_up = self.calibrated_thresholds.get('up', 0.0)
+                self.calibration_down = self.calibrated_thresholds.get('down', 0.0)
+                self.calibration_h_center = self.calibrated_thresholds.get('center', 0.0)
+                self.calibration_left = self.calibrated_thresholds.get('left', 0.0)
+                self.calibration_right = self.calibrated_thresholds.get('right', 0.0)
+                self.calibration_v_center = self.calibrated_thresholds.get('v_center', 0.0)
+                self.calibration_iris_boxheight_center = self.calibrated_thresholds.get('iris_boxheight_center', 0.0)
+                self.calibration_iris_boxheight_up = self.calibrated_thresholds.get('iris_boxheight_up', 0.0)
+                self.calibration_iris_boxheight_down = self.calibrated_thresholds.get('iris_boxheight_down', 0.0)
+                
+                self.calibrated = True
+                self.calibration_stage = 5  # Mark as fully calibrated
+                
+                print(f"✓ Loaded existing calibration from {calibration_path}")
+            except Exception as e:
+                print(f"Failed to load existing calibration: {e}")
 
     def calibrate(self, raw_eye_data_list):
         for raw_eye_data in raw_eye_data_list:
@@ -64,7 +96,7 @@ class EyeCalibrationProcessor:
                 avg_pupil_x = (raw_eye_data['left']['pupil'][0] + raw_eye_data['right']['pupil'][0]) / 2.0
                 self.calibration_right_values.append(avg_pupil_x)
 
-    def next_stage(self):
+    def next_stage(self, face_offset_yaw=None, face_offset_pitch=None):
         if self.calibration_stage < 5:
             self.calibration_stage += 1
         else:
@@ -82,7 +114,7 @@ class EyeCalibrationProcessor:
             self.calibration_iris_boxheight_up = np.mean(self.calibration_iris_boxheight_up_values) if self.calibration_iris_boxheight_up_values else 0.0
             self.calibration_iris_boxheight_down = np.mean(self.calibration_iris_boxheight_down_values) if self.calibration_iris_boxheight_down_values else 0.0
 
-            # Store thresholds
+            # Store thresholds (including face axis offsets)
             self.calibrated_thresholds = {
                 'up': self.calibration_up,
                 'down': self.calibration_down,
@@ -92,7 +124,9 @@ class EyeCalibrationProcessor:
                 'v_center': self.calibration_v_center,
                 'iris_boxheight_center': self.calibration_iris_boxheight_center,
                 'iris_boxheight_up': self.calibration_iris_boxheight_up,
-                'iris_boxheight_down': self.calibration_iris_boxheight_down
+                'iris_boxheight_down': self.calibration_iris_boxheight_down,
+                'face_offset_yaw': face_offset_yaw if face_offset_yaw is not None else 0.0,
+                'face_offset_pitch': face_offset_pitch if face_offset_pitch is not None else 0.0
             }
 
             self.calibrated = True

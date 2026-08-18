@@ -96,6 +96,15 @@ class GazeSession:
         self.eye_processor = etp.EyeLandmarkerProcessor(model_path=MODEL_PATH)
         self.axis_processor = fap.FaceAxisProcessor()
         self.eye_calibrator = ecp.EyeCalibrationProcessor(session_folder=self.output_dir)
+        
+        # Restore face axis offsets if calibration was loaded
+        if self.eye_calibrator.calibrated:
+            face_yaw = self.eye_calibrator.calibrated_thresholds.get('face_offset_yaw', 0.0)
+            face_pitch = self.eye_calibrator.calibrated_thresholds.get('face_offset_pitch', 0.0)
+            self.axis_processor.calibration_offset_yaw = face_yaw
+            self.axis_processor.calibration_offset_pitch = face_pitch
+            print(f"✓ Restored face axis offsets: yaw={face_yaw:.2f}, pitch={face_pitch:.2f}")
+        
         self.gaze_processor = gdp.GazeDirectionProcessor()
         self.screen_pos_processor = esp.EyeScreenPosProcessor(screen_width, screen_height)
         self.scoring_processor = ssp.SuspicionScoringProcessor(
@@ -200,7 +209,11 @@ class GazeSession:
                 self.calibration_samples.append(self.last_raw_eye_data)
             if len(self.calibration_samples) >= self.eye_calibrator.sample_count:
                 self.eye_calibrator.calibrate(self.calibration_samples)
-                self.eye_calibrator.next_stage()
+                # Pass face axis offsets when completing calibration
+                self.eye_calibrator.next_stage(
+                    face_offset_yaw=self.axis_processor.calibration_offset_yaw,
+                    face_offset_pitch=self.axis_processor.calibration_offset_pitch
+                )
                 self.calibration_samples = []
                 self.is_collecting_samples = False
 
