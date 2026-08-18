@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
 from teacherside.models import Exam
-from .models import StudentExamAttempt, StudentAnswer
+from .models import StudentExamAttempt, StudentAnswer, ProctoringSessionFiles
 import json
 
 # Every student page sits behind a login: an exam session has to be attributable
@@ -259,6 +259,14 @@ def submit_exam(request):
         exam_attempt.completed_at = timezone.now()
         exam_attempt.proctoring_ended_at = timezone.now()
         exam_attempt.save()
+        
+        # Scan and save session files
+        proctoring_session_id = request.session.get('proctoring_session_id')
+        if proctoring_session_id:
+            ProctoringSessionFiles.create_or_update_from_session(
+                session_id=proctoring_session_id,
+                exam_attempt=exam_attempt
+            )
         
         # Clear session
         session_key = f'exam_{exam_id}_start_time'

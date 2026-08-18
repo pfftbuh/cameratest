@@ -25,7 +25,7 @@ if str(TRACKER_DIR) not in sys.path:
     sys.path.insert(0, str(TRACKER_DIR))
 
 # Where per-session artefacts (CSV logs, evidence clips, heatmaps) are written.
-SESSION_OUTPUT_DIR = BASE_DIR / 'sessions'
+SESSION_OUTPUT_DIR = BASE_DIR / 'media' / 'sessions'
 
 # Send the annotated face/eye views back to the browser as base64 JPEGs. Costs
 # bandwidth and a little CPU; worth it for a live demo, turn off for load tests.
