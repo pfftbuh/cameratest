@@ -189,7 +189,7 @@ class ProctoringSessionFiles(models.Model):
     
     def get_all_csv_paths(self):
         """Returns paths to both CSV files (calibration + exam session)"""
-        return [self.get_full_path(csv) for csv in self.session_log_csvs]
+        return [self.get_full_path(csv) for csv in self.session_log_csvs if csv]
     
     def get_calibration_csv_path(self):
         """First CSV - from calibration phase"""
@@ -205,5 +205,5 @@ class ProctoringSessionFiles(models.Model):
     
     def get_all_video_paths(self):
         """Returns paths to all violation videos from exam session"""
-        return [self.get_full_path(video) for video in self.violation_videos]
+        return [self.get_full_path(video) for video in self.violation_videos if video]
     

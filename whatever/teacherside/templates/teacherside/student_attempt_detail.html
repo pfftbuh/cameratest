@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .page-header {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+    .page-header h2 {
+        color: var(--text);
+        font-size: 24px;
+        margin: 0 0 0.5rem 0;
+    }
+    .page-header h4 {
+        color: var(--muted);
+        font-size: 16px;
+        font-weight: 400;
+        margin: 0;
+    }
+    .back-btn {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.3s ease;
+        font-size: 14px;
+    }
+    .back-btn:hover {
+        background: var(--bg);
+        color: var(--text);
+        text-decoration: none;
+        border-color: var(--accent);
+    }
+    .attempt-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+    .attempt-header {
+        background: var(--accent);
+        color: #06202b;
+        padding: 1rem 1.5rem;
+    }
+    .attempt-header h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+    .attempt-body {
+        padding: 1.5rem;
+    }
+    .info-label {
+        color: var(--muted);
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    .info-value {
+        color: var(--text);
+        margin-bottom: 1rem;
+    }
+    .file-section-title {
+        color: var(--text);
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 1.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--line);
+    }
+    .file-btn {
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        color: #06202b;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .file-btn:hover {
+        background: transparent;
+        color: var(--accent);
+        text-decoration: none;
+    }
+    .file-btn.secondary {
+        background: var(--panel);
+        border-color: var(--line);
+        color: var(--text);
+    }
+    .file-btn.secondary:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+    .file-btn.warning {
+        background: #f59e0b;
+        border-color: #f59e0b;
+        color: #1a1a1a;
+    }
+    .file-btn.warning:hover {
+        background: transparent;
+        color: #f59e0b;
+    }
+    .file-btn.primary {
+        background: var(--ok);
+        border-color: var(--ok);
+        color: #0a2f1f;
+    }
+    .file-btn.primary:hover {
+        background: transparent;
+        color: var(--ok);
+    }
+    .file-path {
+        color: var(--muted);
+        font-size: 0.75rem;
+        display: block;
+        margin-top: 0.25rem;
+    }
+    .alert-warning {
+        background: rgba(239, 75, 75, 0.1);
+        border: 1px solid var(--bad);
+        color: var(--bad);
+        padding: 1rem;
+        border-radius: 6px;
+    }
+    .alert-info {
+        background: rgba(76, 201, 240, 0.1);
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        padding: 1rem;
+        border-radius: 6px;
+    }
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 0 -0.5rem;
+    }
+    .col-3 {
+        flex: 0 0 25%;
+        max-width: 25%;
+        padding: 0 0.5rem;
+    }
+    .col-md-6 {
+        flex: 0 0 50%;
+        max-width: 50%;
+        padding: 0 0.5rem;
+    }
+    @media (max-width: 768px) {
+        .col-3, .col-md-6 {
+            flex: 0 0 100%;
+            max-width: 100%;
+            margin-bottom: 1rem;
+        }
+    }
+    .icon-calibration::before {
+        content: "■";
+        color: var(--accent);
+        margin-right: 0.5rem;
+    }
+    .icon-heatmap::before {
+        content: "▦";
+        color: var(--accent);
+        margin-right: 0.5rem;
+    }
+    .icon-logs::before {
+        content: "▤";
+        color: var(--accent);
+        margin-right: 0.5rem;
+    }
+    .icon-violations::before {
+        content: "●";
+        color: #f59e0b;
+        margin-right: 0.5rem;
+    }
+</style>
+
+<div class="container mt-4 mb-5">
+    <div class="page-header">
+        <h2>{{ student.first_name }} {{ student.last_name }}</h2>
+        <h4>{{ exam.title }}</h4>
+    </div>
+    
+    <a href="{% url 'exam_attempts_list' exam.exam_id %}" class="back-btn mb-4">
+        <span style="margin-right: 0.5rem;">←</span> Back to Students
+    </a>
+    
+    {% for attempt in attempts %}
+    <div class="attempt-card mt-4">
+        <div class="attempt-header">
+            <h5>Attempt #{{ attempt.attempt_number }}</h5>
+        </div>
+        <div class="attempt-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="info-label">Score</p>
+                    <p class="info-value">
+                        {% if attempt.score %}
+                            {{ attempt.score|floatformat:1 }}%
+                        {% else %}
+                            Not completed
+                        {% endif %}
+                    </p>
+                    <p class="info-label">Completed</p>
+                    <p class="info-value">
+                        {% if attempt.completed_at %}
+                            {{ attempt.completed_at|date:"Y-m-d H:i:s" }}
+                        {% else %}
+                            In progress
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <p class="info-label">Suspicion Score</p>
+                    <p class="info-value">{{ attempt.suspicion_score|floatformat:2 }}</p>
+                    <p class="info-label">Violations</p>
+                    <p class="info-value">{{ attempt.violation_count }}</p>
+                    <p class="info-label">Session ID</p>
+                    <p class="info-value"><code style="color: var(--accent);">{{ attempt.proctoring_session_id }}</code></p>
+                </div>
+            </div>
+            
+            {% if attempt.files %}
+            <h6 class="file-section-title">Proctoring Session Files</h6>
+            
+            <div class="row mt-3">
+                <!-- Calibration Column -->
+                <div class="col-3">
+                    <p class="info-label mb-2 icon-calibration">Calibration</p>
+                    {% if attempt.files.calibration_file %}
+                        <a href="{% url 'download_session_file' attempt.proctoring_session_id 'calibration' %}" 
+                           class="file-btn d-block mb-2">
+                            Download
+                        </a>
+                        <a href="{% url 'view_session_file' attempt.proctoring_session_id 'calibration' %}" 
+                           class="file-btn secondary d-block" target="_blank">
+                            View
+                        </a>
+                    {% else %}
+                        <span class="file-path">Not available</span>
+                    {% endif %}
+                </div>
+                
+                <!-- Heatmap Column -->
+                <div class="col-3">
+                    <p class="info-label mb-2 icon-heatmap">Heatmap</p>
+                    {% if attempt.files.heatmap_image %}
+                        <a href="{% url 'download_session_file' attempt.proctoring_session_id 'heatmap' %}" 
+                           class="file-btn d-block mb-2">
+                            Download
+                        </a>
+                        <a href="{% url 'view_session_file' attempt.proctoring_session_id 'heatmap' %}" 
+                           class="file-btn secondary d-block" target="_blank">
+                            View
+                        </a>
+                    {% else %}
+                        <span class="file-path">Not available</span>
+                    {% endif %}
+                </div>
+                
+                <!-- Session Logs Column -->
+                <div class="col-3">
+                    <p class="info-label mb-2 icon-logs">Session Logs</p>
+                    {% if attempt.files.session_log_csvs %}
+                        {% for csv_path in attempt.files.session_log_csvs %}
+                        {% if csv_path %}
+                            <a href="{% url 'download_session_file_indexed' attempt.proctoring_session_id 'csv' forloop.counter0 %}" 
+                               class="file-btn d-block mb-2">
+                                CSV {{ forloop.counter }}
+                            </a>
+                        {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <span class="file-path">Not available</span>
+                    {% endif %}
+                </div>
+                
+                <!-- Violations Column -->
+                <div class="col-3">
+                    <p class="info-label mb-2 icon-violations">Violations</p>
+                    {% if attempt.files.violation_videos %}
+                        {% for video_path in attempt.files.violation_videos %}
+                        {% if video_path %}
+                            <a href="{% url 'download_session_file_indexed' attempt.proctoring_session_id 'video' forloop.counter0 %}" 
+                               class="file-btn warning d-block mb-2">
+                                Video {{ forloop.counter }}
+                            </a>
+                        {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <span class="file-path">Not available</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Download Session Files Section -->
+            <h6 class="file-section-title">Download Session Files</h6>
+            <div class="mt-3">
+                <a href="{% url 'download_all_session_files' attempt.proctoring_session_id %}" 
+                   class="file-btn primary">
+                    Download All (ZIP)
+                </a>
+            </div>
+            {% else %}
+            <div class="alert-warning mt-3">
+                No proctoring files available for this attempt.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert-info mt-4">No attempts found for this student.</div>
+    {% endfor %}
+</div>
+{% endblock %}
