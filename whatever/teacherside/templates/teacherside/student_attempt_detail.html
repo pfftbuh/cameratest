@@ -184,6 +184,7 @@
 </style>
 
 <div class="container mt-4 mb-5">
+    {% csrf_token %}
     <div class="page-header">
         <h2>{{ student.first_name }} {{ student.last_name }}</h2>
         <h4>{{ exam.title }}</h4>
@@ -229,6 +230,24 @@
             </div>
             
             {% if attempt.files %}
+            <h6 class="file-section-title">Cheating Prediction</h6>
+            <div class="mt-3" id="prediction-block-{{ attempt.proctoring_session_id }}">
+                <button type="button" class="file-btn"
+                        onclick="runPrediction('{{ attempt.proctoring_session_id }}')">
+                    {% if attempt.files.prediction_label %}Re-run Prediction{% else %}Predict{% endif %}
+                </button>
+                <div id="prediction-result-{{ attempt.proctoring_session_id }}" class="mt-2">
+                    {% if attempt.files.prediction_label %}
+                        <span class="info-value">
+                            <strong>{{ attempt.files.prediction_label|title }}</strong>
+                            — {{ attempt.files.cheating_probability|floatformat:1 }}% probability of cheating
+                            ({{ attempt.files.prediction_confidence|floatformat:1 }}% confidence,
+                            as of {{ attempt.files.predicted_at|date:"Y-m-d H:i:s" }})
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
             <h6 class="file-section-title">Proctoring Session Files</h6>
             
             <div class="row mt-3">
@@ -320,4 +339,42 @@
     <div class="alert-info mt-4">No attempts found for this student.</div>
     {% endfor %}
 </div>
+
+<script>
+function runPrediction(sessionId) {
+    const btn = event.target;
+    const resultEl = document.getElementById('prediction-result-' + sessionId);
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Predicting...';
+
+    const predictUrl = '{% url "predict_cheating" "SESSION_ID_PLACEHOLDER" %}'.replace('SESSION_ID_PLACEHOLDER', sessionId);
+    fetch(predictUrl, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken },
+    })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok) {
+                resultEl.innerHTML = `<span class="info-value" style="color: var(--bad);">${data.error || 'Prediction failed'}</span>`;
+                return;
+            }
+            resultEl.innerHTML = `<span class="info-value">
+                <strong>${data.label.replace('_', ' ')}</strong>
+                — ${data.probability_cheating}% probability of cheating
+                (${data.confidence}% confidence)
+            </span>`;
+            btn.textContent = 'Re-run Prediction';
+        })
+        .catch(() => {
+            resultEl.innerHTML = `<span class="info-value" style="color: var(--bad);">Request failed - check your connection</span>`;
+        })
+        .finally(() => {
+            btn.disabled = false;
+            if (btn.textContent === 'Predicting...') btn.textContent = originalText;
+        });
+}
+</script>
 {% endblock %}
