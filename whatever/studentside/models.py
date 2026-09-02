@@ -2,6 +2,7 @@ import os
 import glob
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 # Create your models here.
 
@@ -100,7 +101,22 @@ class ProctoringSessionFiles(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
+    # Cheating-prediction model output (cheating_predictor.predict_session)
+    cheating_probability = models.FloatField(
+        null=True, blank=True,
+        help_text="Model output: probability (0-1) this session was flagged as cheating"
+    )
+    prediction_label = models.CharField(
+        max_length=20, null=True, blank=True,
+        help_text="'cheating' or 'non_cheating'"
+    )
+    prediction_confidence = models.FloatField(
+        null=True, blank=True,
+        help_text="Model confidence (0-1) in prediction_label"
+    )
+    predicted_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         verbose_name = "Proctoring Session Files"
         verbose_name_plural = "Proctoring Session Files"
@@ -206,4 +222,30 @@ class ProctoringSessionFiles(models.Model):
     def get_all_video_paths(self):
         """Returns paths to all violation videos from exam session"""
         return [self.get_full_path(video) for video in self.violation_videos if video]
+
+    def run_prediction(self):
+        """
+        Run the cheating-prediction model on this session's exam-phase CSV log
+        and heatmap, and persist the result on this record.
+
+        Raises cheating_predictor.PredictionUnavailable if the heatmap or the
+        exam-session CSV isn't on disk yet (e.g. the exam hasn't been
+        submitted/finalized, so no heatmap has been generated).
+        """
+        import cheating_predictor as cp
+
+        heatmap_path = self.get_heatmap_path()
+        csv_path = self.get_exam_csv_path() or self.get_calibration_csv_path()
+
+        result = cp.predict_session(heatmap_path, csv_path)
+
+        self.cheating_probability = result["probability_cheating"]
+        self.prediction_label = result["label"]
+        self.prediction_confidence = result["confidence"]
+        self.predicted_at = timezone.now()
+        self.save(update_fields=[
+            "cheating_probability", "prediction_label",
+            "prediction_confidence", "predicted_at",
+        ])
+        return result
     

@@ -6,7 +6,7 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from homepage.models import CustomUser
 from django.db.models import Q, Count, Max, Avg
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from studentside.models import StudentExamAttempt, ProctoringSessionFiles
 import os
 import time
@@ -257,6 +257,40 @@ def student_attempt_detail(request, exam_id, student_id):
     }
     
     return render(request, 'teacherside/student_attempt_detail.html', context)
+
+
+def predict_cheating(request, session_id):
+    """
+    Run the cheating-prediction model on one exam session and return the
+    result as JSON. Triggered by the "Predict" button on the student attempt
+    detail page.
+    """
+    import cheating_predictor as cp
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    try:
+        session_files = ProctoringSessionFiles.objects.get(session_id=session_id)
+    except ProctoringSessionFiles.DoesNotExist:
+        return JsonResponse({'error': 'No proctoring files found for this session'}, status=404)
+
+    try:
+        result = session_files.run_prediction()
+    except cp.PredictionUnavailable as e:
+        return JsonResponse({'error': str(e)}, status=422)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('prediction failed for session %s', session_id)
+        return JsonResponse({'error': 'prediction failed - see server logs'}, status=500)
+
+    return JsonResponse({
+        'session_id': session_id,
+        'label': result['label'],
+        'probability_cheating': round(result['probability_cheating'] * 100, 1),
+        'probability_non_cheating': round(result['probability_non_cheating'] * 100, 1),
+        'confidence': round(result['confidence'] * 100, 1),
+    })
 
 
 def download_session_file(request, session_id, file_type, index=None):

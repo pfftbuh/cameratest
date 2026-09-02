@@ -16,6 +16,7 @@ urlpatterns = [
     path('exam/<int:exam_id>/student/<int:student_id>/attempts/', views.student_attempt_detail, name='student_attempt_detail'),
     
     # Single file downloads (no index needed)
+    path('session/<str:session_id>/predict/', views.predict_cheating, name='predict_cheating'),
     path('session/<str:session_id>/download/<str:file_type>/', views.download_session_file, name='download_session_file'),
     path('session/<str:session_id>/view/<str:file_type>/', views.view_session_file, name='view_session_file'),
     
