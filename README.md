@@ -1,274 +1,145 @@
-## MAKITEST : Suspicious Exam Behaviour Detection System
+# MAKITEST: Suspicious Exam Behaviour Detection
 
-This serves as a guide to the usage, setup, and system framework and architecture of the dual gaze tracking system of MAKITEST. The system monitors exam takers via webcam, tracking head pose and eye gaze to detect and log suspicious behaviours in real time.
+MAKITEST is a Django exam application with browser camera proctoring. The browser sends JPEG frames to Django Channels, where the server runs face tracking, eye tracking, gaze estimation, suspicious-behaviour scoring, heatmap generation, and evidence recording.
 
----
+After submission, the application runs a session-level classifier against the registered exam artifacts. It uses the exam CSV only, stores the prediction on the exam attempt, and writes a JSON prediction artifact.
 
-## Step-by-Step Setup
+## Current Features
 
-### Prerequisites
-- **Python 3.10 or higher** — [Download Python](https://www.python.org/downloads/)
-- **A webcam** connected and accessible (index `0` or `1`)
-- **Windows OS** recommended (the `keyboard` library requires it for global hotkey hooks)
+- Student and teacher authentication with role-based pages.
+- Teacher exam creation, question management, student class assignment, and attempt review.
+- Multiple choice, true/false, numeric, and fill-in-the-blank questions.
+- Browser camera selection and live camera preview.
+- Five-stage gaze calibration with saved student thresholds.
+- Browser-to-server JPEG streaming over Django Channels.
+- Face landmarks, eye landmarks, face pose, eye gaze, weighted screen position, and gaze direction.
+- Browser-side suspicious-key, focus-loss, and hidden-tab reporting.
+- Server-side violation scoring, CSV logging, and video evidence capture.
+- Heatmap generation using `heatmap_<session_id>.png`.
+- Database linkage between attempts, proctoring sessions, and artifacts.
+- Post-submission prediction using the exam CSV, never the calibration CSV.
 
----
+## Project Layout
 
-### Step 1 — Clone or Download the Project
-
-Download all project files into a single folder. Ensure the following files are present in the same directory:
-
+```text
+gaze_session.py                  Per-WebSocket tracking session
+main_trackerprocess.py           Optional standalone OpenCV tracker
+web_session_predict.py           Web-app prediction service
+predict_session.py               Standalone prediction script
+heatmap_feature_extractor.py     Heatmap and CSV feature extraction
+suspicion_model.joblib            Trained classifier
+feature_columns.json             Classifier feature order
+face_landmarker.task              MediaPipe model
+whatever/                         Django project
+  camera/                         Camera page and Channels consumer
+  studentside/                    Student flow, attempts, artifacts, prediction
+  teacherside/                    Exams and proctoring review
+  homepage/                       Authentication and landing pages
+  media/sessions/                 Generated session artifacts
 ```
-main_trackerprocess.py          ← entry point (run this)
-face_trackprocessor.py
-face_distanceprocessor.py
-face_axisprocessor.py
-eye_trackprocessor.py
-eye_gazeprocessor.py
-eye_calibrationprocessor.py
-eye_screenposprocessor.py
-gaze_directionprocessor.py
-suspicion_scoringprocessor.py
-heatmap_processor.py
-keypress_trackprocessor.py
-frame_bufferprocessor.py
-face_landmarker.task          ← required MediaPipe model file
-requirements.txt
-```
 
-> **Important:** The `face_landmarker.task` model file must be present in the same directory as the scripts. Without it, face and eye detection will not function.
+## Setup
 
----
+Requirements:
 
-### Step 2 — Create a Virtual Environment (Recommended)
+- Python 3.10 or higher.
+- A webcam and browser camera permission.
+- Windows is recommended for the standalone `keyboard` processor. Browser proctoring uses browser events instead of a server global keyboard hook.
 
-Open a terminal in the project folder and run:
-
-```bash
+```powershell
 python -m venv venv
-```
-
-Activate the virtual environment:
-
-- **Windows:**
-  ```bash
-  venv\Scripts\activate
-  ```
-- **macOS / Linux:**
-  ```bash
-  source venv/bin/activate
-  ```
-
----
-
-### Step 3 — Install Dependencies
-
-With the virtual environment active, install all required packages:
-
-```bash
+venv\Scripts\activate
 pip install -r requirements.txt
+python whatever/manage.py migrate
+python whatever/manage.py check
 ```
 
-This installs the following libraries:
+## Run the Web Application
 
-| Package | Purpose |
+Start the ASGI development server from the repository root:
+
+```powershell
+python whatever/manage.py runserver
+```
+
+Daphne and Channels are configured so the development server supports `/ws/proctor/<session_id>/`.
+
+## Student Proctoring Flow
+
+1. `exam_details` creates a unique `proctoring_session_id` and stores it temporarily in the Django session.
+2. The camera page reuses the ID and opens a WebSocket for calibration.
+3. Calibration proceeds through center, up, down, left, and right stages.
+4. Thresholds are saved for the student and `eye_calibration.json` is written.
+5. The exam page creates `StudentExamAttempt` and opens a new WebSocket with the same ID.
+6. Exam frames generate gaze data, violations, CSV logs, heatmaps, and video evidence.
+7. Submission saves and grades answers, marks the attempt complete, and registers files in `ProctoringSessionFiles`.
+8. Prediction uses the final registered CSV as the exam CSV and the registered heatmap.
+9. Prediction fields are saved to `StudentExamAttempt` and the JSON result is written under `prediction/`.
+
+The durable relationship is:
+
+```text
+StudentExamAttempt.proctoring_session_id
+        -> ProctoringSessionFiles.session_id
+        -> media/sessions/<session_id>/
+```
+
+## Session Artifacts
+
+Web sessions are stored below `whatever/media/sessions/<session_id>/`:
+
+| Artifact | Purpose |
 |---|---|
-| `mediapipe` | Face and eye landmark detection model |
-| `opencv-python` / `opencv-contrib-python` | Webcam capture and frame rendering |
-| `numpy` | Numerical computation and array operations |
-| `matplotlib` | Plotting and heatmap visualisation |
-| `keyboard` | Global keyboard hotkey monitoring |
-| `sounddevice` | Audio support (reserved for future alerts) |
-| `pillow` | Image processing utilities |
+| `eye_calibration.json` | Calibrated eye and face thresholds |
+| `session_log_*.csv` | Calibration and exam event logs |
+| `heatmap_<session_id>.png` | Final exam gaze heatmap |
+| `*_violation_*.mp4` | Violation evidence clips |
+| `prediction/predicted_values.json` | Classifier probabilities and extracted features |
 
----
+The first CSV is the calibration log. The final registered CSV is the exam log. Prediction does not fall back to the calibration CSV.
 
-### Step 4 — Verify Webcam Index
+## Prediction
 
-Open `main_trackerprocess.py` and locate this line near the top:
+The web integration is implemented in `web_session_predict.py` and accepts explicit registered artifact paths:
 
 ```python
-cap = cv2.VideoCapture(1)
+from web_session_predict import predict_session_files
+
+result = predict_session_files(
+    heatmap_path=heatmap_path,
+    csv_path=exam_csv_path,
+    session_directory=session_directory,
+)
 ```
 
-Change the index to match your camera:
-- `0` — default built-in webcam
-- `1` — secondary or external webcam
+The result contains `predicted_label`, `confidence`, both class probabilities, the model version, feature columns, and extracted features. The standalone `predict_session.py` remains available for manual folder-based prediction and is separate from the Django submission flow.
 
----
+## Database and Migrations
 
-### Step 5 — Run the Program
+`StudentExamAttempt` stores grading, proctoring, and prediction state. `ProctoringSessionFiles` stores relative paths to artifacts and links them to the attempt.
 
-Run the main tracker from the terminal:
+After model changes:
 
-```bash
+```powershell
+python whatever/manage.py makemigrations
+python whatever/manage.py migrate
+```
+
+The current prediction migration is `studentside.0004_studentexamattempt_prediction`.
+
+## Standalone Tracker
+
+The original OpenCV tracker remains available:
+
+```powershell
 python main_trackerprocess.py
 ```
 
-Two windows will open:
-- **Main feed** — shows the live webcam with face/eye landmarks overlaid
-- **Screen position debug view** — shows the estimated gaze position on a virtual screen grid
+It uses a local webcam, OpenCV windows, keyboard controls, and standalone output defaults. It is separate from the browser/Django workflow, which uses `GazeSession` through Django Channels.
 
----
+## Limitations
 
-### Step 6 — Calibrate the System
-
-Calibration must be performed before gaze tracking is accurate. Follow the on-screen calibration stages:
-
-| Key | Action |
-|---|---|
-| `{` | Advance to the next calibration stage (look at the indicated target point) |
-| `}` | Exit the program |
-
-**Calibration stages (in order):**
-1. **Stage 0** — Look straight at the camera (center baseline)
-2. **Stage 1** — Look up
-3. **Stage 2** — Look down
-4. **Stage 3** — Look left
-5. **Stage 4** — Look right
-
-At each stage, press `{` while holding your gaze on the target. The system collects 60 frames of samples per stage and saves the result to `calibration_data.json` automatically. On subsequent runs, saved calibration data is loaded from this file.
-
----
-
-### Step 7 — Review Session Output
-
-After the session ends (`}` to quit), the following output files are generated in the project folder:
-
-| File | Description |
-|---|---|
-| `session_log_<timestamp>.csv` | Event-based log of all gaze directions, violations, and durations |
-| `heatmap_<timestamp>.png` | Visual heatmap of screen gaze positions over the session |
-| `clip_<timestamp>.avi` | Video clip recorded around any detected suspicious behaviour event |
-
----
-
-## System Architecture
-
-The system is composed of **13 modules**, each responsible for a distinct processing stage. Data flows from the webcam through detection, tracking, calibration, scoring, and output layers.
-
-```
-Webcam → FrameBufferProcessor
-           ↓
-     FaceTrackProcessor → FaceDistanceProcessor
-           ↓                       ↓
-     FaceAxisProcessor       EyeTrackProcessor
-           ↓                       ↓
-     GazeDirectionProcessor ← EyeGazeProcessor
-           ↓                       ↓
-     EyeScreenPosProcessor ← EyeCalibrationProcessor
-           ↓
-     SuspicionScoringProcessor → CSV log / Video clips
-           ↓
-     HeatmapProcessor → Heatmap image
-     KeypressTrackProcessor → Suspicious key log
-```
-
----
-
-## Module Reference
-
-### `main_trackerprocess.py` — Main Tracker Process *(entry point)*
-The entry point of the application. Initialises OpenCV's camera feed, instantiates every processor module, and runs the main loop that reads frames, calls each processor in sequence, and renders the results. Press `{` to step through calibration and `}` to exit.
-
----
-
-### `face_trackprocessor.py` — Face Track Processor
-Loads the `face_landmarker.task` MediaPipe model and runs face landmark detection on each video frame. Detects up to 1 face and returns the full set of 478 3D facial landmarks. Also tracks a smoothed gaze ray direction by averaging recent face normal vectors, which is fed into the axis and gaze processors.
-
----
-
-### `face_distanceprocessor.py` — Face Distance Processor
-Estimates the physical distance (in centimetres) between the subject and the camera. It uses a second-degree polynomial fitted (`numpy.polyfit`) to a set of manually measured iris-pixel-width vs. distance calibration samples. Given the pixel distance between the left and right iris centers, it returns a centimetre distance estimate.
-
-<img width="720" height="540" alt="image" src="https://github.com/user-attachments/assets/8a1238e4-8496-4b4b-9eac-b3f6588d700e" />
-<br><br>
-
-Using the second degree of polynomial gives the process a great balance between efficiency and accuracy. This is implemented by gathering the distance of the irises with their corresponding distance from the camera. The process then uses `polyfit()` to predict the values of input data outside the given samples.
-
----
-
-### `face_axisprocessor.py` — Face Axis Processor
-Computes the **yaw** (left/right rotation) and **pitch** (up/down tilt) of the head in degrees using five key facial landmarks: chin, nose tip, forehead, left cheek, and right cheek. Calibration offsets are applied so that looking straight ahead reads as 0°/0°. The resulting angles are mapped to an estimated screen position using configurable degree limits (default: ±25° yaw, ±12° pitch).
-
-#### Face-Position Anchor Offset
-When converting head-pose angles to a screen coordinate, the processor also accounts for where the face sits within the camera frame. Each frame, `update_anchor_from_face_position()` receives the face centre in pixels and the frame dimensions. It normalises the face position to a `[-0.5, 0.5]` range relative to the frame centre, then scales that deviation directly onto screen space (1920×1080):
-
-```
-norm_x = (face_center_x / frame_width)  - 0.5
-norm_y = (face_center_y / frame_height) - 0.5
-
-anchor_offset_x = norm_x * 1920
-anchor_offset_y = norm_y * 1080
-```
-
-These offsets are added to the angle-derived screen position inside `get_estimated_screen_position()` before the result is clamped to the screen bounds. A face perfectly centred in the camera frame produces zero offset; a face displaced to the right shifts the estimated gaze position right proportionally, correcting for the parallax-like error that would otherwise occur when the subject is not centred in front of the camera.
-
----
-
-### `eye_trackprocessor.py` — Eye Track Processor
-Uses a second instance of the MediaPipe `FaceLandmarker` model to isolate and track detailed eye geometry. Extracts upper/lower eyelid contours, iris boundary points, and pupil center positions for both eyes. Passes the raw eye geometry to `EyeGazeProcessor` for normalised gaze computation, and draws the eye bounding boxes and landmark points on the frame.
-
----
-
-### `eye_gazeprocessor.py` — Eye Gaze Processor
-Takes the raw eye landmark coordinates from `EyeTrackProcessor` and computes two key measurements per eye:
-- **Iris position** — the normalised horizontal position of the iris center within the eye bounding box (0 = far left, 1 = far right)
-- **Iris box height** — the pixel distance between the upper and lower eyelid markers, used to infer vertical gaze and detect blinks
-
-These values are returned as `raw_eye_data` which feeds into the calibration and gaze direction processors.
-
----
-
-### `eye_calibrationprocessor.py` — Eye Calibration Processor
-Manages a multi-stage calibration sequence that records baseline eye measurements for center, up, down, left, and right gaze positions. For each stage it collects a rolling window of 60 samples and averages them into threshold values. The calibrated thresholds are stored in a dictionary and saved to `calibration_data.json` so recalibration is not required on every run.
-
----
-
-### `eye_screenposprocessor.py` — Eye Screen Position Processor
-Maps the calibrated iris position values to absolute screen pixel coordinates (default: 1920×1080). Applies exponential moving average (EMA) smoothing with a configurable time constant (`smoothing_tau = 0.18 s`) to eliminate jitter. Also classifies the screen into a 3×3 grid of named regions (e.g. "Up Left", "Center Center", "Down Right") for use by the suspicion scorer.
-
----
-
-### `gaze_directionprocessor.py` — Gaze Direction Processor
-Fuses the face-axis-based screen position and the eye-based screen position into a single weighted estimate. Default weights are 45% face axis and 55% eye gaze. Also classifies the combined gaze into a discrete direction string (`"Up"`, `"Down"`, `"Left"`, `"Right"`, `"Center"`) using calibrated thresholds and dead zones to prevent jitter.
-
----
-
-### `suspicion_scoringprocessor.py` — Suspicion Scoring Processor
-The behavioural analysis engine. Monitors gaze direction and raises suspicion events based on configurable rules:
-
-| Trigger | Default Threshold |
-|---|---|
-| Looking to the side | > 3.0 seconds |
-| Looking down | > 5.0 seconds |
-| Face off-screen | > 1.5 seconds |
-| Rapid gaze shifts | > 6 shifts / 10 seconds |
-
-When a violation is detected, it:
-- Logs the event with timestamps to a CSV file (`session_log_<timestamp>.csv`)
-- Saves a video clip (3-second pre-roll + post-roll) to an AVI file
-- Tracks and reports suspicious keyboard shortcuts detected by `KeypressTrackProcessor`
-
----
-
-### `heatmap_processor.py` — Heatmap Processor
-Accumulates all gaze screen-position points recorded during the session. On exit, generates a Gaussian-blurred heatmap image showing where the subject looked most frequently. The output is saved as a colour-mapped PNG file (`heatmap_<timestamp>.png`).
-
----
-
-### `keypress_trackprocessor.py` — Keypress Track Processor
-Registers global keyboard hooks (using the `keyboard` library) to detect suspicious hotkey combinations without needing focus on the application window. Monitored combos include:
-
-- `Alt+Tab`, `Ctrl+C/V/X` — switching and clipboard
-- `Windows`, `Ctrl+Esc` — start menu / app switching
-- `Ctrl+T/N/W`, `F11`, `Esc` — browser actions
-- `Print Screen`, `Win+Shift+S` — screen capture
-- `Alt+F4` — application evasion
-
-Detections are stored in a thread-safe buffer and retrieved each frame by the main loop.
-
----
-
-### `frame_bufferprocessor.py` — Frame Buffer Processor
-Runs a dedicated background thread that continuously reads frames from the OpenCV `VideoCapture` object and stores the latest frame in a thread-safe buffer. This decouples frame acquisition from the processing loop, preventing the main loop from blocking on camera I/O and ensuring the freshest possible frame is always available.
-
+- Prediction currently runs synchronously during submission.
+- A prediction is unavailable or failed when the separate exam CSV or heatmap is missing.
+- The model is a proof-of-concept trained on a small session-level dataset and should not be treated as an autonomous cheating decision.
+- Final artifacts must exist before the submission scan and prediction run.

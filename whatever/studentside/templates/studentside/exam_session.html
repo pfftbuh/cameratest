@@ -165,7 +165,7 @@
       timerDisplay.textContent = '00:00';
       timerDisplay.style.color = 'var(--bad)';
       alert('Time is up! Your exam will be submitted automatically.');
-      document.getElementById('exam-form').submit();
+      document.getElementById('exam-form').requestSubmit();
       return;
     }
 
@@ -202,6 +202,10 @@
     const ctx = canvas.getContext("2d", { alpha: false });
     
     let ws = null, streaming = false, currentStream = null;
+    let sessionFinalized = false;
+    let finalizationRequested = false;
+    let submitAfterFinalization = false;
+    let finalizationTimeout = null;
     
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -216,7 +220,17 @@
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         
-        if (data.type === "frame_result") {
+        if (data.type === "session_closed") {
+          sessionFinalized = true;
+          finalizationRequested = false;
+          if (finalizationTimeout) clearTimeout(finalizationTimeout);
+          streaming = false;
+          if (submitAfterFinalization) {
+            submitAfterFinalization = false;
+            window.examNativeSubmitAllowed = true;
+            document.getElementById('exam-form').submit();
+          }
+        } else if (data.type === "frame_result") {
           if (data.debug_face) {
             annotated.src = data.debug_face;
             annotated.hidden = false;
@@ -320,6 +334,34 @@
     });
     
     connect();
+
+    window.requestExamSubmission = function () {
+      if (sessionFinalized) {
+        window.examNativeSubmitAllowed = true;
+        document.getElementById('exam-form').submit();
+        return;
+      }
+
+      submitAfterFinalization = true;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        submitAfterFinalization = false;
+        window.examNativeSubmitAllowed = true;
+        document.getElementById('exam-form').submit();
+        return;
+      }
+
+      if (finalizationRequested) return;
+      finalizationRequested = true;
+      ws.send(JSON.stringify({ type: "finalize_session" }));
+      finalizationTimeout = setTimeout(() => {
+        if (!sessionFinalized && submitAfterFinalization) {
+          submitAfterFinalization = false;
+          finalizationRequested = false;
+          window.examNativeSubmitAllowed = true;
+          document.getElementById('exam-form').submit();
+        }
+      }, 30000);
+    };
     
     window.addEventListener('beforeunload', () => {
       if (currentStream) {
@@ -331,10 +373,21 @@
 
   // Form submission
   document.getElementById('exam-form').addEventListener('submit', (e) => {
+    if (window.examSubmissionStarted) {
+      e.preventDefault();
+      return;
+    }
     if (!confirm('Are you sure you want to submit your exam? You cannot change your answers after submission.')) {
       e.preventDefault();
       return false;
     }
+    window.examSubmissionStarted = true;
+    if (window.examNativeSubmitAllowed || !window.requestExamSubmission) {
+      window.examNativeSubmitAllowed = false;
+      return;
+    }
+    e.preventDefault();
+    window.requestExamSubmission();
   });
 </script>
 {% endblock %}

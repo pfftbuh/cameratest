@@ -3,7 +3,9 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
 from teacherside.models import Exam
+import os
 from .models import StudentExamAttempt, StudentAnswer, ProctoringSessionFiles
+import heatmap_feature_extractor as hfe
 import json
 
 # Every student page sits behind a login: an exam session has to be attributable
@@ -177,6 +179,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import json
 from .models import StudentTrackingThresholds
+from web_session_predict import predict_session_files
 
 
 @login_required
@@ -263,10 +266,11 @@ def submit_exam(request):
         # Scan and save session files
         proctoring_session_id = request.session.get('proctoring_session_id')
         if proctoring_session_id:
-            ProctoringSessionFiles.create_or_update_from_session(
+            session_files = ProctoringSessionFiles.create_or_update_from_session(
                 session_id=proctoring_session_id,
                 exam_attempt=exam_attempt
             )
+            _predict_exam_attempt(exam_attempt, session_files)
         
         # Clear session
         session_key = f'exam_{exam_id}_start_time'
@@ -285,6 +289,57 @@ def submit_exam(request):
     except (Exam.DoesNotExist, StudentExamAttempt.DoesNotExist):
         messages.error(request, 'Exam or attempt not found.')
         return redirect('student_home')
+
+
+def _predict_exam_attempt(exam_attempt, session_files):
+    """Run prediction from the files registered for an exam attempt."""
+    if session_files is None:
+        exam_attempt.prediction_status = 'unavailable'
+        exam_attempt.prediction_error = 'No proctoring session files were found.'
+        exam_attempt.save(update_fields=['prediction_status', 'prediction_error'])
+        return
+
+    heatmap_path = session_files.get_heatmap_path()
+    csv_path = session_files.get_exam_csv_path()
+
+    if csv_path and os.path.isfile(csv_path):
+        csv_features = hfe.extract_csv_features(csv_path)
+        exam_attempt.violation_count = sum(
+            csv_features[f'violation_count_{category}']
+            for category in hfe.VIOLATION_CATEGORIES
+        )
+        exam_attempt.save(update_fields=['violation_count'])
+
+    exam_attempt.prediction_status = 'running'
+    exam_attempt.prediction_error = None
+    exam_attempt.save(update_fields=['prediction_status', 'prediction_error'])
+
+    try:
+        result = predict_session_files(
+            heatmap_path=heatmap_path,
+            csv_path=csv_path,
+            session_directory=session_files.get_full_path(session_files.session_directory),
+        )
+        exam_attempt.suspicion_score = result['confidence']
+        exam_attempt.prediction_label = result['predicted_label']
+        exam_attempt.prediction_confidence = result['confidence']
+        exam_attempt.probability_cheating = result['probability_cheating']
+        exam_attempt.probability_non_cheating = result['probability_non_cheating']
+        exam_attempt.prediction_model_version = result['model_version']
+        exam_attempt.prediction_artifact = result.get('artifact_path')
+        exam_attempt.prediction_status = 'completed'
+        exam_attempt.prediction_completed_at = timezone.now()
+        exam_attempt.save(update_fields=[
+            'suspicion_score',
+            'prediction_label', 'prediction_confidence',
+            'probability_cheating', 'probability_non_cheating',
+            'prediction_model_version', 'prediction_artifact',
+            'prediction_status', 'prediction_completed_at',
+        ])
+    except Exception as error:
+        exam_attempt.prediction_status = 'failed'
+        exam_attempt.prediction_error = str(error)
+        exam_attempt.save(update_fields=['prediction_status', 'prediction_error'])
 
 
 def grade_exam_attempt(exam_attempt):

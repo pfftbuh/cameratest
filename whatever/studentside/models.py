@@ -20,6 +20,16 @@ class StudentExamAttempt(models.Model):
     suspicion_score = models.FloatField(default=0.0, help_text="Cumulative suspicion score")
     violation_count = models.IntegerField(default=0, help_text="Number of flagged violations")
 
+    prediction_label = models.CharField(max_length=30, null=True, blank=True)
+    prediction_confidence = models.FloatField(null=True, blank=True)
+    probability_cheating = models.FloatField(null=True, blank=True)
+    probability_non_cheating = models.FloatField(null=True, blank=True)
+    prediction_status = models.CharField(max_length=20, default='pending')
+    prediction_error = models.TextField(null=True, blank=True)
+    prediction_model_version = models.CharField(max_length=100, null=True, blank=True)
+    prediction_completed_at = models.DateTimeField(null=True, blank=True)
+    prediction_artifact = models.CharField(max_length=500, null=True, blank=True)
+
     class Meta:
         unique_together = ('student', 'exam', 'attempt_number')
 
@@ -198,9 +208,14 @@ class ProctoringSessionFiles(models.Model):
         return None
     
     def get_exam_csv_path(self):
-        """Second CSV - from exam session phase"""
-        if len(self.session_log_csvs) > 1:
-            return self.get_full_path(self.session_log_csvs[1])
+        """Return the final CSV, which is the exam session log.
+
+        Calibration and exam use separate WebSocket sessions with the same
+        session ID. The calibration log is created first, so the final log is
+        the only one eligible for exam prediction.
+        """
+        if len(self.session_log_csvs) >= 2:
+            return self.get_full_path(self.session_log_csvs[-1])
         return None
     
     def get_all_video_paths(self):

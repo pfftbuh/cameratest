@@ -5,7 +5,7 @@ from .models import Exam, Question
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from homepage.models import CustomUser
-from django.db.models import Q, Count, Max, Avg
+from django.db.models import Q, Count, Max, Avg, Sum
 from django.http import FileResponse, Http404, HttpResponse
 from studentside.models import StudentExamAttempt, ProctoringSessionFiles
 import os
@@ -215,9 +215,12 @@ def exam_attempts_list(request, exam_id):
         total_attempts=Count('id'),
         best_score=Max('score'),
         avg_score=Avg('score'),
-        avg_suspicion=Avg('suspicion_score'),
-        total_violations=Count('violation_count')
+        avg_suspicion=Avg('prediction_confidence'),
+        total_violations=Sum('violation_count')
     ).order_by('student__username')
+
+    for summary in attempts_summary:
+        summary['avg_suspicion_percent'] = summary['avg_suspicion'] * 100 if summary['avg_suspicion'] is not None else None
     
     context = {
         'exam': exam,
@@ -240,6 +243,15 @@ def student_attempt_detail(request, exam_id, student_id):
     
     # Attach session files to each attempt
     for attempt in attempts:
+        if attempt.prediction_status == 'completed':
+            label = 'Non-cheating' if attempt.prediction_label == 'non_cheating' else 'Cheating'
+            attempt.suspicion_display = (
+                f'{label} - {attempt.prediction_confidence * 100:.0f}%'
+            )
+        else:
+            attempt.suspicion_display = (
+                attempt.prediction_status or 'pending'
+            ).title()
         if attempt.proctoring_session_id:
             try:
                 attempt.files = ProctoringSessionFiles.objects.get(

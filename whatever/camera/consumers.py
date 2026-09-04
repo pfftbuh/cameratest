@@ -146,6 +146,14 @@ class ProctorConsumer(AsyncWebsocketConsumer):
         elif command == 'ping':
             await self.send_json({'type': 'pong'})
 
+        elif command == 'finalize_session':
+            summary = await sync_to_async(
+                self.session.finalize,
+                thread_sensitive=False,
+            )()
+            await self.send_json(summary)
+            await self.close(code=1000)
+
         else:
             await self.send_json({'type': 'error', 'message': f'unknown command: {command!r}'})
         
