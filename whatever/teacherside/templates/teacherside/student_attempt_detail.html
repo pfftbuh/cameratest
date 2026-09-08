@@ -181,6 +181,77 @@
         color: #f59e0b;
         margin-right: 0.5rem;
     }
+    .clips-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 1.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--line);
+    }
+    .clips-heading .file-section-title {
+        margin: 0;
+        padding: 0;
+        border: 0;
+    }
+    .clips-count {
+        color: var(--muted);
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+    .clip-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 1rem;
+        overflow-x: auto;
+        padding: 0 0.25rem 0.75rem;
+        scroll-snap-type: x proximity;
+        scrollbar-color: var(--accent) var(--line);
+    }
+    .clip-card {
+        flex: 0 0 280px;
+        min-width: 280px;
+        overflow: hidden;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        scroll-snap-align: start;
+    }
+    .clip-card video {
+        display: block;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        background: #000;
+    }
+    .clip-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.65rem 0.75rem;
+    }
+    .clip-label {
+        min-width: 0;
+        color: var(--text);
+        font-size: 0.82rem;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .clip-download {
+        flex: 0 0 auto;
+        color: var(--accent);
+        font-size: 0.76rem;
+        text-decoration: none;
+    }
+    .clip-download:hover { color: var(--text); }
+    @media (max-width: 560px) {
+        .clip-card { flex-basis: 250px; min-width: 250px; }
+        .clips-heading { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
+    }
 </style>
 
 <div class="container mt-4 mb-5">
@@ -285,23 +356,37 @@
                     {% endif %}
                 </div>
                 
-                <!-- Violations Column -->
+                <!-- Violations Summary Column -->
                 <div class="col-3">
                     <p class="info-label mb-2 icon-violations">Violations</p>
                     {% if attempt.files.violation_videos %}
-                        {% for video_path in attempt.files.violation_videos %}
-                        {% if video_path %}
-                            <a href="{% url 'download_session_file_indexed' attempt.proctoring_session_id 'video' forloop.counter0 %}" 
-                               class="file-btn warning d-block mb-2">
-                                Video {{ forloop.counter }}
-                            </a>
-                        {% endif %}
-                        {% endfor %}
+                        <span class="file-path">{{ attempt.files.violation_videos|length }} video clips below</span>
                     {% else %}
                         <span class="file-path">Not available</span>
                     {% endif %}
                 </div>
             </div>
+
+            {% if attempt.files.violation_videos %}
+            <div class="clips-heading">
+                <h6 class="file-section-title">Violation clips</h6>
+                <span class="clips-count">{{ attempt.files.violation_videos|length }} clips · select play to review</span>
+            </div>
+            <div class="clip-grid">
+                {% for video_filename in attempt.video_filenames %}
+                <article class="clip-card">
+                    <video controls preload="metadata">
+                        <source src="{% url 'view_session_file_indexed' attempt.proctoring_session_id 'video' forloop.counter0 %}" type="video/mp4">
+                        Your browser does not support video playback.
+                    </video>
+                    <div class="clip-meta">
+                        <span class="clip-label" title="{{ video_filename }}">{{ video_filename }}</span>
+                        <a class="clip-download" href="{% url 'download_session_file_indexed' attempt.proctoring_session_id 'video' forloop.counter0 %}">Download</a>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% endif %}
             
             <!-- Download Session Files Section -->
             <h6 class="file-section-title">Download Session Files</h6>

@@ -257,10 +257,17 @@ def student_attempt_detail(request, exam_id, student_id):
                 attempt.files = ProctoringSessionFiles.objects.get(
                     session_id=attempt.proctoring_session_id
                 )
+                attempt.video_filenames = [
+                    os.path.basename(video_path)
+                    for video_path in attempt.files.violation_videos
+                    if video_path
+                ]
             except ProctoringSessionFiles.DoesNotExist:
                 attempt.files = None
+                attempt.video_filenames = []
         else:
             attempt.files = None
+            attempt.video_filenames = []
     
     context = {
         'exam': exam,
@@ -333,7 +340,7 @@ def download_session_file(request, session_id, file_type, index=None):
 
 
 def view_session_file(request, session_id, file_type, index=None):
-    """View file in browser (for images, JSON, CSV)"""
+    """View a session file in the browser, including video clips."""
     try:
         session_files = ProctoringSessionFiles.objects.get(session_id=session_id)
     except ProctoringSessionFiles.DoesNotExist:
@@ -358,6 +365,16 @@ def view_session_file(request, session_id, file_type, index=None):
             raise Http404("CSV file not found")
         file_path = csv_paths[index]
         content_type = 'text/csv'
+
+    elif file_type == 'video':
+        if index is None:
+            raise Http404("Video index is required")
+        video_paths = session_files.get_all_video_paths()
+        if not video_paths or not (0 <= index < len(video_paths)):
+            raise Http404("Video file not found")
+        file_path = video_paths[index]
+        content_type, _ = mimetypes.guess_type(file_path)
+        content_type = content_type or 'video/mp4'
     
     else:
         raise Http404("Invalid file type for viewing")
