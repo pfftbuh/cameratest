@@ -462,8 +462,10 @@ Temporal Filtering - The combined gaze coordinates are appended to history deque
 Screen Coordinate Conversion - The normalized coordinates (0-1 range) are multiplied by screen dimensions to produce absolute pixel coordinates representing the estimated point of regard on the examination interface.
 5.1.4.	Output and Integration
 The get_screen_position() method returns the final normalized gaze coordinates as a tuple (x, y) where both values range from 0.0 to 1.0. This standardized output format enables seamless integration with the Django backend, where gaze data can be logged to the database via the models defined in models.py, transmitted to the frontend for real-time visualization, or analyzed for examination integrity assessment (detecting prolonged off-screen gaze, unusual gaze patterns, or absence of face detection indicating the examinee has left their station).
+
 ## Machine Learning Approach
-	Random Forest Classifier is used as an exploratory session-level prediction model. It consumes the stored heatmap and event-log features and returns a predicted class through the model’s `predict()` method. The confidence level is the probability assigned by `predict_proba()` to that predicted class. This confidence is distinct from the rule-based 0-or-100 event score, and the available results should not be treated as independent deployment validation.
+Random Forest Classifier is used as an exploratory session-level prediction model. It consumes the stored heatmap and event-log features and returns a predicted class through the model’s `predict()` method. The confidence level is the probability assigned by `predict_proba()` to that predicted class. This confidence is distinct from the rule-based 0-or-100 event score, and the available results should not be treated as independent deployment validation.
+
 ## Web Application Framework and Architecture
 To create our Exam Delivery Application which will implement and integrate our suspicious behaviour detection system, we are using the Python Django framework. 
 Python Django is a high-level web framework which is known for its scalability, security and convenient maintenance. The framework uses the MVT Architecture which means Model, View and Template.
@@ -686,45 +688,27 @@ Usability and Integration	Ease of use, intuitiveness, and non intrusiveness duri
 Documentation and Future Development	Clarity of documentation and support for continued improvement	4.8	Strong agreement; users endorse further development and adoption
 Overall Mean	Aggregate score across all categories	4.7	Excellent overall acceptance and satisfaction
 ## Presentation of Data Results
-A separate reported trial set contained 32 sessions, consisting of 26 non-cheating trials and 6 simulated cheating trials, conducted under controlled classroom conditions. This trial set must be distinguished from the checked-in `features.csv`, which contains 186 session-level observations with 93 records in each label class. The two counts should not be presented as the same dataset unless the data lineage is documented.
+The checked-in `features.csv` contains 186 session-level observations, with 93 records in each label class. The dataset combines heatmap-distribution features with event-log features and should be interpreted as an exploratory session-level dataset.
 The system generated outputs including gaze heatmaps, event activated replay clips, and Excel logs of gaze direction and duration. These served as the primary basis for analysis. Heatmaps displayed gaze concentration patterns, replay clips captured contextual evidence of suspicious events, and Excel logs provided quantitative measurements of gaze durations and directional shifts.
 Each trial underwent an independent calibration process to align gaze coordinates with the camera’s field of view. Variations in tester height, seating distance, and facial positioning influenced detection precision. To ensure comparability, all heatmaps were manually aligned to a standardized reference screen area, preserving relative gaze distribution while compensating for calibration differences.
 ## Non-Cheating Heatmap Observations
-The aggregated heatmap of non cheating trials displayed a concentrated focal area near the center of the screen, indicating sustained visual attention on the examination interface. The high intensity region reflected consistent gaze fixation, suggesting that test takers maintained focus on the active question area throughout the session. This pattern was uniform across the 26 non cheating trials, showing minimal deviation in gaze direction and stable engagement with the exam content.
-
-
-
-
-
-
-
-
-
+The aggregated heatmap of label-0 sessions displayed a concentrated focal area near the center of the screen, indicating sustained visual attention on the examination interface. The high intensity region reflected consistent gaze fixation, suggesting that test takers maintained focus on the active question area throughout those sessions. The observed pattern represents a dataset-level association and should not be treated as proof that every label-0 session reflects identical behavior.
 
 
 Figure 32.1 Non-Cheating Heatmap
 ## Cheating Heatmap Observations
-The heatmaps generated from the six cheating trials revealed dispersed gaze clusters across peripheral regions of the screen, characterized by multiple high intensity points rather than a single focal area. This scattered pattern indicated inconsistent visual attention, with frequent shifts away from the central exam interface. The dispersion suggested multitasking or external reference checking behaviors, as participants’ gaze often moved toward off screen or peripheral areas during the test.
-
-
-
-
-
-
-
-
-
+The heatmaps generated from label-1 sessions showed more dispersed gaze clusters across peripheral regions of the screen, characterized by multiple high intensity points rather than a single focal area. This scattered pattern indicated less concentrated visual attention, with frequent shifts away from the central exam interface. The dispersion may be consistent with multitasking or external reference checking behavior, although the dataset labels represent the experimental conditions used to construct the sessions and do not independently prove misconduct.
 
 
 Figure 32.2 Cheating Heatmap
 ## Video Clipping System Observations
 Table 16. VCS Observations
  
-The reported clipping observations recorded 264 replay clips for non-cheating sessions and 127 for cheating sessions after data cleaning. However, 264 clips across 26 non-cheating sessions corresponds to approximately 10.15 clips per session, not 12.57; 127 clips across 6 cheating sessions corresponds to approximately 21.17. These figures should be recalculated from the raw clip inventory before publication. In the current implementation, clips are triggered by rule-based event activations such as irregular gaze, off-screen focus, or reported forbidden events.
+The current workspace does not include a complete raw clip inventory that can be reconciled with the 186-row feature dataset. In the implementation, clips are triggered by rule-based event activations such as irregular gaze, off-screen focus, or reported forbidden events. Clip totals and per-session averages should therefore be reported only after the source video files have been independently counted and matched to session identifiers.
 ## Gaze Direction Duration Observations
 Table 17. Gaze Observations
  
-Non cheating participants maintained central focus for approximately half of the total duration (normalized = 0.50), while cheating participants distributed their gaze more evenly across multiple directions (center and up right ≈ 0.25–0.26). Statistical measures supported this difference, with cheating trials showing lower standard deviation (33.49 s) and coefficient of variation (0.80) compared to non cheating trials (47.77 s and 1.30). These metrics indicate that cheating sessions exhibited more uniform gaze dispersion and less concentrated attention.
+Label-0 sessions maintained a more concentrated central gaze distribution, while label-1 sessions distributed gaze more evenly across multiple directions. These differences are descriptive associations within the available dataset; their statistical strength should be reported only with the corresponding session counts, raw observations, and uncertainty measures.
 ## Overall System Performance
 Across all modules, which consisted of gaze tracking, heatmap visualization, and video clipping, the system consistently produced measurable distinctions between non cheating and cheating sessions. Calibration differences were normalized through manual alignment, ensuring comparability of visual data and maintaining the integrity of behavioral patterns observed across trials.
 ## Data Interpretation
