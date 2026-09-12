@@ -2,7 +2,7 @@
 
 ## Overview
 
-The dataset contains 97 session-level observations and 81 columns. Each row represents one recorded session. The dataset contains 79 potential predictor variables, a `session_id` identifier, and a binary `label`.
+The dataset contains 186 session-level observations and 81 columns. Each row represents one recorded session. The dataset contains 79 potential predictor variables, a `session_id` identifier, and a binary `label`.
 
 The predictor variables consist of:
 
@@ -14,8 +14,8 @@ The predictor variables consist of:
 
 The classes are approximately balanced:
 
-- Label 0: 49 sessions, or 50.5% of the dataset.
-- Label 1: 48 sessions, or 49.5% of the dataset.
+- Label 0: 93 sessions, or 50.0% of the dataset.
+- Label 1: 93 sessions, or 50.0% of the dataset.
 
 This balance is useful for binary classification because the model is less likely to achieve an apparently high accuracy simply by predicting the majority class.
 
@@ -27,8 +27,8 @@ No missing values were observed in the dataset. All predictor columns contain nu
 
 Sessions assigned to label 1 generally show more active and dispersed gaze behavior than sessions assigned to label 0. The strongest observed differences include:
 
-- A higher number of gaze transitions. The approximate mean difference between label 1 and label 0 was 250 transitions.
-- More forbidden-key violations, with an approximate mean difference of 4.9 violations.
+- A higher number of gaze transitions. The approximate mean difference between label 1 and label 0 was 260 transitions.
+- More forbidden-key violations, with an approximate mean difference of 5.5 violations.
 - Higher heatmap coverage, indicating that gaze activity is distributed across a larger portion of the screen.
 - Higher entropy, indicating a less concentrated gaze distribution.
 - A lower peak ratio, indicating that gaze activity is less concentrated in a single dominant region.
@@ -50,9 +50,9 @@ These relationships are expected because all three features describe aspects of 
 
 Some features contain unusually large values relative to the rest of the dataset:
 
-- `elongation_ratio` reaches approximately 26.31, while most observations are substantially lower.
-- `num_transitions` reaches approximately 1,281.
-- Several violation-count and duration features also contain relatively high values.
+- `elongation_ratio` reaches approximately 39.65, while most observations are substantially lower.
+- `num_transitions` reaches approximately 1,547.
+- Several violation-count and duration features also contain relatively high values, including up to 16 forbidden-key violations, 30 off-screen violations, and 24 duration violations in a session.
 
 These observations should be inspected to determine whether they represent genuine behavior, unusually long sessions, tracking errors, or data-processing artifacts. Outliers should not be removed automatically, since unusual behavior may be relevant to the classification task.
 
@@ -62,37 +62,31 @@ The dataset is a suitable starting point for developing and testing a prototype 
 
 The current training approach is also a reasonable baseline. It uses a Random Forest classifier, stratified five-fold cross-validation, probability calibration, and a saved feature-column order for inference.
 
-Nevertheless, the dataset is small relative to the number of predictors. With 97 sessions and 79 predictors, the model may overfit, and cross-validation results may vary considerably depending on the sampled sessions. Therefore, the current dataset should be treated as an exploratory or proof-of-concept dataset rather than sufficient evidence for deployment.
+Nevertheless, the dataset is small relative to the number of predictors. With 186 sessions and 79 predictors, the model may overfit, and cross-validation results may vary considerably depending on the sampled sessions. Therefore, the current dataset should be treated as an exploratory or proof-of-concept dataset rather than sufficient evidence for deployment.
 
 ## Model Trainer Results
 
-The model trainer was executed using the complete dataset. It trained a calibrated Random Forest classifier using stratified five-fold cross-validation. The reported cross-validated results were:
+The model trainer was executed using the current complete dataset. It trained a calibrated Random Forest classifier using stratified five-fold cross-validation. The reported cross-validated results were:
 
 | Metric | Result |
 |---|---:|
-| Cross-validated accuracy | 0.948 |
-| Cross-validated ROC-AUC | 0.980 |
+| Cross-validated accuracy | 0.909 |
+| Cross-validated ROC-AUC | 0.974 |
 
 The classification report was:
 
 | Class | Precision | Recall | F1-score | Support |
 |---|---:|---:|---:|---:|
-| Non-cheating | 0.94 | 0.96 | 0.95 | 49 |
-| Cheating | 0.96 | 0.94 | 0.95 | 48 |
-| Macro average | 0.95 | 0.95 | 0.95 | 97 |
-| Weighted average | 0.95 | 0.95 | 0.95 | 97 |
+| Non-cheating | 0.90 | 0.91 | 0.91 | 93 |
+| Cheating | 0.91 | 0.90 | 0.91 | 93 |
+| Macro average | 0.91 | 0.91 | 0.91 | 186 |
+| Weighted average | 0.91 | 0.91 | 0.91 | 186 |
 
-The overall cross-validated accuracy was 0.95, with similar precision, recall, and F1-scores for both classes. This indicates that the current feature set can separate the two classes effectively within the cross-validation procedure. The ROC-AUC of 0.98 also indicates strong ranking performance across classification thresholds.
+The overall cross-validated accuracy was 0.91, with similar precision, recall, and F1-scores for both classes. This indicates that the current feature set separates the two classes reasonably well within the cross-validation procedure. The ROC-AUC of 0.97 indicates strong ranking performance across classification thresholds, although the lower accuracy than the earlier run shows that the estimate is sensitive to the current dataset and should not be treated as deployment evidence.
 
-These results should be interpreted cautiously. They are cross-validated estimates generated from only 97 sessions, not results from a completely independent test set. They may therefore be optimistic if sessions from the same participant or recording conditions appear in both training and validation folds, or if any feature is closely related to the labeling procedure. Independent participant-level or future-session testing is still required.
+These results should be interpreted cautiously. They are cross-validated estimates generated from 186 sessions, not results from a completely independent test set. They may therefore be optimistic if sessions from the same participant or recording conditions appear in both training and validation folds, or if any feature is closely related to the labeling procedure. Independent participant-level or future-session testing is still required.
 
 After training, the model artifact was saved as `suspicion_model.joblib`, and the feature order used during training was saved as `feature_columns.json`. These files support consistent feature alignment during session-level prediction.
-
-## Web Application Usage
-
-The Django integration uses the same 79-feature contract after an exam is submitted. It reads the registered `heatmap_<session_id>.png` and the final CSV in the session's `ProctoringSessionFiles` record. The first CSV is the calibration log and is excluded from prediction. Results are stored on `StudentExamAttempt` and written to `prediction/predicted_values.json` under the session directory.
-
-The web prediction service is `web_session_predict.py`; the older `predict_session.py` remains a standalone folder-based tool. A missing separate exam CSV or heatmap produces an unavailable or failed web prediction rather than using calibration data as a fallback.
 
 ## Validation Risks and Limitations
 
@@ -122,4 +116,4 @@ The following steps would strengthen the dataset and the resulting model:
 
 The dataset provides a promising foundation for an exploratory gaze-behavior classification model. Label 1 is associated with more dispersed gaze activity, more transitions, higher coverage and entropy, lower peak concentration, and more recorded violations. The balanced classes and absence of missing values are positive properties.
 
-However, the limited number of sessions, possible participant dependence, strong feature correlations, outliers, and possible relationship between violation features and labels limit the strength of the conclusions. The dataset is appropriate for developing a baseline and guiding further data collection, but additional validation is required before the model can be described as reliable for real-world decision-making.
+However, the limited number of sessions, possible participant dependence, strong feature correlations, outliers, and possible relationship between violation features and labels limit the strength of the conclusions. The increase to 186 sessions improves the sample size, but the dataset is still appropriate primarily for developing a baseline and guiding further data collection. Additional validation is required before the model can be described as reliable for real-world decision-making.
