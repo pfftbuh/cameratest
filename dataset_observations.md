@@ -23,12 +23,40 @@ This balance is useful for binary classification because the model is less likel
 
 No missing values were observed in the dataset. All predictor columns contain numeric values, while `session_id` is a string identifier and `label` is the target variable. No duplicate session IDs were found in the inspected data.
 
+## Captured Session Video Clips Analysis
+
+Each session logs automated `.mp4` video clips whenever a behavioral violation is triggered (e.g., frantic eye movements, forbidden key shortcuts, eyes off-screen, or prolonged directional looks). Across all 186 sessions in the dataset, a total of **3,135 video clips** were captured.
+
+### Overall & Class-Level Clip Counts
+
+| Metric | Cheating (Label 1) | Non-Cheating (Label 0) | Overall Dataset / Difference |
+|---|---:|---:|---:|
+| **Total Sessions** | 93 | 93 | 186 sessions |
+| **Total Captured Clips** | 2,035 | 1,100 | 3,135 clips |
+| **Mean Clips / Session** | **21.88** | **11.83** | **+10.05 clips (+84.9%)** |
+| **Median Clips / Session** | 20.0 | 11.0 | +9.0 clips |
+| **Standard Deviation** | 9.29 | 6.29 | — |
+| **Min / Max Range** | 4 to 57 | 1 to 38 | — |
+
+### Key Observations & Comparison
+
+- **Substantial Increase in Captured Evidence**: Cheating sessions captured an overall average of **21.88 clips per session**, compared to **11.83 clips per session** for non-cheating sessions. This represents an average difference of **+10.05 clips per session** (an 84.9% increase in recorded video evidence).
+- **Statistical Significance**: A two-sample t-test ($t = 8.44, p = 2.67 \times 10^{-15}$) and Mann-Whitney U test ($U = 7,370.5, p = 1.76 \times 10^{-18}$) confirm that cheating sessions produce significantly more violation clips than non-cheating sessions.
+- **Violation Category Breakdown**:
+  - **Forbidden-Key Clips**: Cheating sessions averaged **5.47 clips/session** (509 total), whereas non-cheating sessions averaged **0.03 clips/session** (3 total).
+  - **Frantic Eye Movement Clips**: Cheating sessions averaged **10.67 clips/session** (992 total) vs. **8.26 clips/session** (768 total) in non-cheating sessions.
+  - **Off-Screen Violations**: Cheating sessions averaged **1.42 clips/session** (132 total) vs. **0.41 clips/session** (38 total) in non-cheating sessions.
+  - **Duration Gaze Violations**: Cheating sessions averaged **4.32 clips/session** (402 total) vs. **3.13 clips/session** (291 total) in non-cheating sessions.
+
+This difference aligns with expectations, as cheating sessions trigger considerably more hotkey violations, off-screen gaze diversions, and frantic eye patterns, directly resulting in a higher volume of auto-recorded video evidence clips.
+
 ## Observed Feature Patterns
 
 Sessions assigned to label 1 generally show more active and dispersed gaze behavior than sessions assigned to label 0. The strongest observed differences include:
 
 - A higher number of gaze transitions. The approximate mean difference between label 1 and label 0 was 260 transitions.
 - More forbidden-key violations, with an approximate mean difference of 5.5 violations.
+- A substantially higher number of auto-captured video evidence clips, averaging 21.88 clips per session for label 1 versus 11.83 clips for label 0 (a mean difference of +10.05 clips).
 - Higher heatmap coverage, indicating that gaze activity is distributed across a larger portion of the screen.
 - Higher entropy, indicating a less concentrated gaze distribution.
 - A lower peak ratio, indicating that gaze activity is less concentrated in a single dominant region.
@@ -114,6 +142,6 @@ The following steps would strengthen the dataset and the resulting model:
 
 ## Summary
 
-The dataset provides a promising foundation for an exploratory gaze-behavior classification model. Label 1 is associated with more dispersed gaze activity, more transitions, higher coverage and entropy, lower peak concentration, and more recorded violations. The balanced classes and absence of missing values are positive properties.
+The dataset provides a promising foundation for an exploratory gaze-behavior classification model. Label 1 is associated with more dispersed gaze activity, more transitions, higher coverage and entropy, lower peak concentration, more recorded violations, and nearly double the number of auto-captured video evidence clips (21.88 vs 11.83 clips per session). The balanced classes and absence of missing values are positive properties.
 
 However, the limited number of sessions, possible participant dependence, strong feature correlations, outliers, and possible relationship between violation features and labels limit the strength of the conclusions. The increase to 186 sessions improves the sample size, but the dataset is still appropriate primarily for developing a baseline and guiding further data collection. Additional validation is required before the model can be described as reliable for real-world decision-making.
